@@ -1,4 +1,0 @@
-﻿iter,train_rmse,valid_rmse,eta,max_depth,min_child_weight,gamma,subsample,colsample_bytree,eval_metric,objective,seed,nfold,nthread,silent
-400,2.925089,3.229219,0.1,5,16,0.7,0.7,0.86875,rmse,reg:linear,123,18,8,1
-400,2.926885,3.227402,0.1,5,16,0.7,0.7,0.87,rmse,reg:linear,123,18,8,1
-399,2.916981,3.222376,0.1,5,16,0.7,0.7,0.87125,rmse,reg:linear,123,18,8,1

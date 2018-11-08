@@ -1,7 +1,0 @@
-﻿iter,train_rmse,valid_rmse,eta,max_depth,min_child_weight,gamma,subsample,colsample_bytree,eval_metric,objective,seed,nfold,nthread,silent
-79,3.741826,3.774995,0.1,5,16,0.6,0.5,0.5,rmse,reg:linear,123,5,8,1
-87,3.738891,3.772832,0.1,5,17,0.6,0.5,0.5,rmse,reg:linear,123,5,8,1
-70,3.745329,3.776592,0.1,5,16,0.65,0.5,0.5,rmse,reg:linear,123,5,8,1
-70,3.748319,3.778574,0.1,5,17,0.65,0.5,0.5,rmse,reg:linear,123,5,8,1
-71,3.748641,3.772096,0.1,5,16,0.7,0.5,0.5,rmse,reg:linear,123,5,8,1
-92,3.729708,3.773651,0.1,5,17,0.7,0.5,0.5,rmse,reg:linear,123,5,8,1

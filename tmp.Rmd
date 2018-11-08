@@ -1,0 +1,346 @@
+### baseline xgboost tweedie {#tweedie}
+
+#### d* data
+
+```{r eval=F}
+set.seed(123)
+split <- sample(nrow(train_data_3.0),nrow(train_data_3.0)*0.8,replace = T)
+train_data03.0 <- train_data_3.0[split,]
+valid_data03.0 <- train_data_3.0[-split,]
+dtrain03.0 <- xgb.DMatrix(data = as.matrix(train_data03.0 %>% select(-t,-tsi_real,-p)),
+                      label = train_data03.0$p+100
+                      # gamma 回归 y > 0
+                        )
+dvalid03.0 <- xgb.DMatrix(data = as.matrix(valid_data03.0 %>% select(-t,-tsi_real,-p)),
+                      label = valid_data03.0$p+100
+                        )
+watchlist03.0 <- list(train=dtrain03.0,
+                  valid=dvalid03.0
+                  )
+```
+
+```{r eval=F}
+library(lubridate)
+xgb.DMatrix.save(
+    dtrain03.0
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dtrain03.0.buffer',sep='_')
+    )
+)
+xgb.DMatrix.save(
+    dvalid03.0
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dvalid03.0.buffer',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+dtrain03.0 <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dtrain03.0.buffer') %>% max
+        )
+    )
+dvalid03.0 <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dvalid03.0.buffer') %>% max
+        )
+    )
+```
+
+#### param tuning
+
+`expand.grid`函数实现穷举。
+
+```{r eval=F}
+eta <- 
+    # c(0.1,0.2,0.3) # 0.1
+    # c(0.1)
+    # c(0.05,0.1,0.15)
+    0.3
+nround <- 
+    200
+max_depth <- 
+    # c(5,7,10)
+    # c(8,10,12)
+    # c(9,10,11)
+    11
+    # c(4,5,6)
+min_child_weight <- 
+    # c(30,35,40)
+    # c(37,40,43)
+    # c(38,40,42)
+    42
+    # c(18,20,22)
+    # c(17,18,19)
+    # c(16,17)
+gamma <- 
+    # c(1,2,3)
+    # c(2.5,3,3.5)
+    # c(2.25,2.5,2.75)
+    2.5
+    # c(0.7,1.0,1.2)
+    # c(0.6,0.65,0.7)
+subsample <- 
+    # c(0.3,0.5,0.7)
+    c(0.6,0.7,0.8)
+    # c(0.65,0.7,0.75)
+colsample_bytree <- 
+    # c(0.3,0.5,0.7)
+    c(0.4,0.5,0.6)
+    # c(0.6,0.7,0.8)
+    # c(0.75,0.8,0.85)
+    # c(0.825,0.85,0.875)
+    # c(0.8725,0.875,0.8775)
+    # c(0.87,0.8725,0.874)
+    # c(0.86875,0.87,0.87125)
+nfold <- 
+    # c(5,10,15)
+    # c(15,18,20)
+    # c(16,18,19)
+    # 18
+    # c(20,25,30)
+    30
+hyper_grid <- 
+    expand.grid(
+        eta=eta,
+        nround=nround,
+        max_depth = max_depth,
+        min_child_weight = min_child_weight,
+        gamma = gamma,
+        subsample = subsample,
+        colsample_bytree = colsample_bytree,
+        nfold = nfold
+    )
+hyper_grid
+```
+
+```{r eval=F}
+xgb_hyper_grid <- 
+    function(eta,nround,max_depth,min_child_weight,gamma,subsample,colsample_bytree,nfold){
+        set.seed(123)
+        xgb <- xgb.train(
+         data=dtrain03.0,
+         ### 1
+           eta = eta,
+           nround=nround,
+         ### 2
+           max_depth = max_depth,
+           min_child_weight = min_child_weight,  
+           gamma = gamma,
+         ### 3
+           subsample = subsample,
+           colsample_bytree = colsample_bytree,
+         ### 评价标准
+           eval.metric = "rmse",
+         ### objective
+           objective = "reg:tweedie", ### 这是一个回归问题
+         ### 其他
+           seed = 123,
+           watchlist=watchlist03.0,
+           nfold = nfold,
+           early_stopping_rounds = 50,
+           nthread = 8
+           )
+        # data.table::data.table(
+        #     best_score = xgb$best_score[1]
+        #     ,best_iteration = xgb$best_iteration
+        #     ,niter = xgb$niter
+        bind_cols(
+            xgb$evaluation_log %>% 
+                dplyr::slice(c(xgb$best_iteration))
+            ,xgb$params %>% 
+                as.data.frame()
+        )
+        # 对比参数和结果，指导调整参数。
+    }
+```
+
+1. 注意一定要重新跑`dmatrix`，不然会闪退。
+
+```{r eval=F}
+set.seed(123)
+find_rmse <- 
+    hyper_grid %>% 
+    mutate(mod = pmap(
+                      list(eta=eta
+                           ,nround=nround
+                           ,max_depth=max_depth
+                           ,min_child_weight=min_child_weight
+                           ,gamma=gamma
+                           ,subsample=subsample
+                           ,colsample_bytree=colsample_bytree
+                           ,nfold=nfold
+                           )
+                      ,xgb_hyper_grid
+                      )
+               ) %>% 
+    select(mod) %>% 
+    unnest() %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+1. `tweedie`下降很快。
+
+```{r eval=F}
+find_rmse %>% 
+    # filter(valid_rmse == min(valid_rmse))
+    # arrange(valid_rmse-train_rmse)
+    arrange(valid_rmse)
+```
+
+#### model
+
+```{r}
+get_log_xgb <- function(x,start_time,end_time,output='xgboost_result_baseline_tweedie.csv'){
+    # lose start_time or end_time
+    # results
+    # Error in .Call(`_dplyr_mutate_impl`, df, dots) : 
+    #     promise already under evaluation: recursive default argument reference or earlier problems?
+    xgb_parms <- x$params %>% 
+        as.data.frame() 
+    sys_name <- 
+        Sys.info() %>% 
+        t() %>% 
+        as.data.frame() %>% 
+        select(sysname)
+    bind_cols(
+        xgb_parms,sys_name
+    ) %>%
+        mutate(
+            start_time = start_time
+            ,end_time = end_time
+        ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+}
+```
+
+```{r eval=F}
+set.seed(123)
+start_time <- now()
+xgb_base05 <- xgb.train(
+    data=dtrain03.0,
+    ### 1
+    eta = 0.3,
+    nround=200,
+    ### 2
+    max_depth = 11,
+    min_child_weight = 42,  
+    gamma = 2.5,
+    ### 3
+    subsample = 0.8	,
+    colsample_bytree = 0.6,
+    ### 评价标准
+    ### eval.metric = "error",
+    eval.metric = "mae",
+    eval.metric = "rmse",
+    ### eval.metric = ks_value,
+    ### eval.metric = "auc",
+    ### eval.metric = "logloss",
+    ### objective
+    objective = "reg:tweedie", ### 这是一个回归问题
+    ### 其他
+    seed = 123,
+    watchlist=watchlist03.0,
+    nfold = 30,
+    early_stopping_rounds = 50,
+    nthread = 8
+    )
+end_time <- now()
+get_log_xgb(xgb_base05,start_time,end_time)
+```
+
+```{r eval=F}
+xgb.save(
+    xgb_base05
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'xgb_base05.model',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+xgb_base05 <- 
+    xgb.load(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('xgb_base05.model') %>% max
+        )
+    )
+```
+
+#### predict
+
+```{r eval=F}
+test_data_3.0 %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            test_data_3.0 %>% 
+            select(-id,-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_prediction_xgboostbaseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+没有提升了，下一步做lag变量。
+
+
+
+#### imp
+
+```{r eval=F}
+xgb.importance(feature_names = colnames(dtrain03.0), model = xgb_base05) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_imp_tbl.csv',sep='_')
+        )
+    ) 
+```
+
+```{r eval=F}
+fread(file.path(
+    'data'
+    ,list.files('data') %>% str_subset('jiaxiang_imp_tbl.csv') %>% max
+)
+,encoding = 'UTF-8'
+)
+```
+
+#### 总结
+
+1. 发现平方项的特征工程只能做到`rmse=3.036030`的水平。
+1. 下一步加入lag 测试。
+

@@ -1,4 +1,0 @@
-﻿iter,train_rmse,valid_rmse,eta,max_depth,min_child_weight,gamma,subsample,colsample_bytree,eval_metric,objective,seed,nfold,nthread,silent
-69,3.089202,3.124045,0.3,7,35,2,0.5,0.5,rmse,reg:tweedie,123,30,8,1
-191,3.11458,3.145915,0.3,7,35,2,0.5,0.5,rmse,reg:tweedie,123,30,8,1
-183,3.089575,3.126747,0.3,7,35,2,0.5,0.5,rmse,reg:tweedie,123,30,8,1
