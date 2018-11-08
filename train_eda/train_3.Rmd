@@ -1,0 +1,212 @@
+---
+title: "短期光伏功率预测3"
+author: "靳晓松"
+date: "2018年10月16日"
+output: 
+  html_document:
+    number_sections: TRUE
+    paged: TRUE
+    toc: TRUE
+    toc_float: TRUE
+    code_folding: hide
+    fig_width: 8
+    fig_height: 6
+    theme: united
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+```
+
+
+<font size=4 face="微软雅黑">
+
+# 获取数据
+***
+
+```{r}
+setwd("E:/sprixin/power")
+
+library(Rmisc)
+library(magrittr)
+library(lubridate)
+library(data.table)
+library(tidyverse)
+
+
+
+train_3 <- read_csv("train_3.csv")
+names(train_3) <- c('datetime', 'irradiance', 'wind_speed', 'wind_direction',
+                    'temperation', 'pressure', 'humitidy', 'real_irradiance', 
+                    'real_power')
+
+train_3 %<>%
+  mutate(datetime = datetime + seconds(x = 1),
+         split_year = factor(year(datetime), levels = 2016:2018, ordered = T),
+         split_quarter = factor(quarter(datetime), levels = 1:4, ordered = T),
+         real_irradiance = ifelse(real_irradiance < 0, 0, real_irradiance))
+```
+
+
+# 探索数据
+***
+
+## split_year & split_quarter
+```{r fig.width=8, fig.height=6}
+bar_year <-
+  ggplot(train_3, aes(x = split_year, fill = split_year)) +
+  geom_bar() +
+  theme_bw() +
+  theme(legend.position = 'none')
+
+bar_quarter <-
+  ggplot(train_3, aes(x = split_quarter, fill = split_quarter)) +
+  geom_bar() +
+  theme_bw() +
+  theme(legend.position = 'none')
+
+multiplot(bar_year, bar_quarter, cols = 2)
+```
+
+## irradiance
+```{r fig.width=8, fig.height=6}
+hist_irradiance <-
+  ggplot(train_3, aes(x = irradiance)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_irradiance <-
+  ggplot(train_3, aes(x = irradiance, y = irradiance)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_irradiance, box_irradiance, cols = 2)
+```
+
+## wind_speed
+```{r fig.width=8, fig.height=6}
+hist_windspeed <-
+  ggplot(train_3, aes(x = wind_speed)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_windspeed <-
+  ggplot(train_3, aes(x = wind_speed, y = wind_speed)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_windspeed, box_windspeed, cols = 2)
+```
+
+## wind_direction
+```{r fig.width=8, fig.height=6}
+hist_winddirection <-
+  ggplot(train_3, aes(x = wind_direction)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_winddirection <-
+  ggplot(train_3, aes(x = wind_direction, y = wind_direction)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_winddirection, box_winddirection, cols = 2)
+```
+
+## temperation
+```{r fig.width=8, fig.height=6}
+hist_temperation <-
+  ggplot(train_3, aes(x = temperation)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_temperation <-
+  ggplot(train_3, aes(x = temperation, y = temperation)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_temperation, box_temperation, cols = 2)
+```
+
+## pressure
+```{r fig.width=8, fig.height=6}
+hist_pressure <-
+  ggplot(train_3, aes(x = pressure)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_pressure <-
+  ggplot(train_3, aes(x = pressure, y = pressure)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_pressure, box_pressure, cols = 2)
+```
+
+## humitidy
+```{r fig.width=8, fig.height=6}
+hist_humitidy <-
+  ggplot(train_3, aes(x = humitidy)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_humitidy <-
+  ggplot(train_3, aes(x = humitidy, y = humitidy)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_humitidy, box_humitidy, cols = 2)
+```
+
+## real_irradiance
+```{r fig.width=8, fig.height=6}
+hist_realirradiance <-
+  ggplot(train_3, aes(x = real_irradiance)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_realirradiance <-
+  ggplot(train_3, aes(x = real_irradiance, y = real_irradiance)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_realirradiance, box_realirradiance, cols = 2)
+```
+
+## real_power
+```{r fig.width=8, fig.height=6}
+hist_realpower <-
+  ggplot(train_3, aes(x = real_power)) +
+  geom_histogram(fill = '#1f77b4', color = 'black') +
+  theme_bw()
+
+box_realpower <-
+  ggplot(train_3, aes(x = real_power, y = real_power)) +
+  geom_boxplot() +
+  theme_bw()
+
+multiplot(hist_realpower, box_realpower, cols = 2)
+```
+
+## year & real_power
+```{r fig.width=8, fig.height=6}
+year_realpower <-
+  ggplot(train_3, aes(x = split_year, y = real_power, fill = split_year)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(legend.position = 'none')
+```
+
+## year & quarter & real_power
+```{r fig.width=8, fig.height=6}
+year_quarter_power <-
+  ggplot(train_3, aes(x = split_quarter, y = real_power, fill = split_quarter)) +
+  geom_boxplot() +
+  facet_grid(. ~ split_year) +
+  theme_bw() +
+  theme(legend.position = 'none')
+```
+
+
+</font>
