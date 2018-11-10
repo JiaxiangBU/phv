@@ -1695,7 +1695,364 @@ add2evaluation::phv_metric(
 
 1. 官方的异常值剔除有意义。
 
+## baseline xgboost tweedie delete underc_meanhour data daily data y and x add 15 min data
 
+```{r eval=F}
+train_data_3.0_underc_meanhour <- 
+        
+        train_data_3.0_underc %>% 
+            mutate(t = floor_date(t,unit = 'hour')) %>% 
+            group_by(short_name,t) %>% 
+            summarise_all(mean) %>% 
+            ungroup %>% 
+    
+        # 加上每刻钟的信息
+        left_join(
+            train_data_3.0_underc %>% 
+                ungroup() %>% 
+                filter(minute(t)==0) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-p,-tsi_real) %>% 
+                # set_names(paste0(names(.),'_00')) %>% 
+                rename_at(vars(3:48),~paste0(.,'_00'))
+            ,by=c('short_name','t')
+        ) %>% 
+        
+        left_join(
+            train_data_3.0_underc %>% 
+                ungroup() %>% 
+                filter(minute(t)==15) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-p,-tsi_real) %>% 
+                rename_at(vars(3:48),~paste0(.,'_15'))
+            ,by=c('short_name','t')
+        ) %>% 
+        
+        left_join(
+            train_data_3.0_underc %>% 
+                ungroup() %>% 
+                filter(minute(t)==30) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-p,-tsi_real) %>% 
+                rename_at(vars(3:48),~paste0(.,'_30'))
+            ,by=c('short_name','t')
+        ) %>% 
+        
+        left_join(
+            train_data_3.0_underc %>% 
+                ungroup() %>% 
+                filter(minute(t)==45) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-p,-tsi_real) %>% 
+                rename_at(vars(3:48),~paste0(.,'_45'))
+            ,by=c('short_name','t')
+        )
+```
+
+```{r eval=F}
+test_data_3.0_meanhour <- 
+    
+        
+        test_data_3.0 %>% 
+            mutate(t = floor_date(t,unit = 'hour')) %>% 
+            group_by(short_name,t) %>% 
+            summarise_all(mean) %>% 
+            ungroup %>% 
+    
+        # 加上每刻钟的信息
+        left_join(
+            test_data_3.0 %>% 
+                ungroup() %>% 
+                filter(minute(t)==0) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-id) %>% 
+                # set_names(paste0(names(.),'_00')) %>% 
+                rename_at(vars(3:48),~paste0(.,'_00'))
+            ,by=c('short_name','t')
+        ) %>% 
+        
+        left_join(
+            test_data_3.0 %>% 
+                ungroup() %>% 
+                filter(minute(t)==15) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-id) %>% 
+                rename_at(vars(3:48),~paste0(.,'_15'))
+            ,by=c('short_name','t')
+        ) %>% 
+        
+        left_join(
+            test_data_3.0 %>% 
+                ungroup() %>% 
+                filter(minute(t)==30) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-id) %>% 
+                rename_at(vars(3:48),~paste0(.,'_30'))
+            ,by=c('short_name','t')
+        ) %>% 
+        
+        left_join(
+            test_data_3.0 %>% 
+                ungroup() %>% 
+                filter(minute(t)==45) %>% 
+                mutate(t = floor_date(t,unit = 'hour')) %>% 
+                select(-id) %>% 
+                rename_at(vars(3:48),~paste0(.,'_45'))
+            ,by=c('short_name','t')
+        )
+```
+
+### d* data
+
+```{r eval=F}
+set.seed(123)
+split <- sample(nrow(train_data_3.0_underc_meanhour),nrow(train_data_3.0_underc_meanhour)*0.8,replace = T)
+train_data03.0underc_meanhour <- train_data_3.0_underc_meanhour[split,]
+valid_data03.0underc_meanhour <- train_data_3.0_underc_meanhour[-split,]
+dtrain03.0underc_meanhour <- xgb.DMatrix(data = as.matrix(train_data03.0underc_meanhour %>% select(-t,-tsi_real,-p)),
+                      label = train_data03.0underc_meanhour$p+100
+                      # gamma 回归 y > 0
+                        )
+dvalid03.0underc_meanhour <- xgb.DMatrix(data = as.matrix(valid_data03.0underc_meanhour %>% select(-t,-tsi_real,-p)),
+                      label = valid_data03.0underc_meanhour$p+100
+                        )
+watchlist03.0underc_meanhour <- list(train=dtrain03.0underc_meanhour,
+                  valid=dvalid03.0underc_meanhour
+                  )
+```
+
+```{r eval=F}
+library(lubridate)
+xgb.DMatrix.save(
+    dtrain03.0underc_meanhour
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dtrain03.0underc_meanhour.buffer',sep='_')
+    )
+)
+xgb.DMatrix.save(
+    dvalid03.0underc_meanhour
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dvalid03.0underc_meanhour.buffer',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+dtrain03.0underc_meanhour <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dtrain03.0underc_meanhour.buffer') %>% max
+        )
+    )
+dvalid03.0underc_meanhour <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dvalid03.0underc_meanhour.buffer') %>% max
+        )
+    )
+```
+
+### model
+
+```{r eval=F}
+get_log_xgb <- function(x,start_time,end_time,output='xgboost_result_baseline_tweedie.csv'){
+    # lose start_time or end_time
+    # results
+    # Error in .Call(`_dplyr_mutate_impl`, df, dots) : 
+    #     promise already under evaluation: recursive default argument reference or earlier problems?
+    xgb_parms <- x$params %>% 
+        as.data.frame() 
+    sys_name <- 
+        Sys.info() %>% 
+        t() %>% 
+        as.data.frame() %>% 
+        select(sysname)
+    bind_cols(
+        xgb_parms,sys_name
+    ) %>%
+        mutate(
+            start_time = start_time
+            ,end_time = end_time
+        ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+}
+```
+
+```{r eval=F}
+set.seed(123)
+start_time <- now()
+xgb_base05underc_meanhour <- xgb.train(
+    data=dtrain03.0underc_meanhour,
+    ## 1
+    eta = 0.3,
+    nround=200,
+    ## 2
+    max_depth = 11,
+    min_child_weight = 42,  
+    gamma = 2.5,
+    ## 3
+    subsample = 0.8	,
+    colsample_bytree = 0.6,
+    ## 评价标准
+    ## eval.metric = "error",
+    eval.metric = "mae",
+    eval.metric = "rmse",
+    ## eval.metric = ks_value,
+    ## eval.metric = "auc",
+    ## eval.metric = "logloss",
+    ## objective
+    objective = "reg:tweedie", ## 这是一个回归问题
+    ## 其他
+    seed = 123,
+    watchlist=watchlist03.0underc_meanhour,
+    nfold = 30,
+    early_stopping_rounds = 50,
+    nthread = 8
+    )
+end_time <- now()
+get_log_xgb(xgb_base05underc_meanhour,start_time,end_time)
+```
+
+```{r eval=F}
+xgb.save(
+    xgb_base05underc_meanhour
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'xgb_base05underc_meanhour.model',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+xgb_base05underc_meanhour <- 
+    xgb.load(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('xgb_base05underc_meanhour.model') %>% max
+        )
+    )
+```
+
+### predict
+
+```{r eval=F}
+setdiff(
+    train_data_3.0_underc_meanhour %>% select(-t,-tsi_real,-p) %>% names
+    ,test_data_3.0 %>% 
+            ungroup() %>% 
+            transmute(id,short_name,t=floor_date(t,unit = 'hour')) %>% 
+            left_join(
+                test_data_3.0_meanhour %>% 
+                ungroup()
+                ,by=c('short_name','t')
+            ) %>% 
+            select(-id,-t) %>% names
+)
+```
+
+
+```{r eval=F}
+test_data_3.0 %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            test_data_3.0 %>% 
+            ungroup() %>% 
+            transmute(short_name,t=floor_date(t,unit = 'hour')) %>% 
+            left_join(
+                test_data_3.0_meanhour %>% 
+                ungroup()
+                ,by=c('short_name','t')
+            ) %>% 
+            select(-id,-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05underc_meanhour,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_prediction_xgboostbaseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+### imp
+
+```{r eval=F}
+xgb.importance(feature_names = colnames(dtrain03.0underc_meanhour), model = xgb_base05underc_meanhour) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_imp_tbl.csv',sep='_')
+        )
+    ) 
+```
+
+```{r eval=F}
+fread(file.path(
+    'data'
+    ,list.files('data') %>% str_subset('jiaxiang_imp_tbl.csv') %>% max
+)
+,encoding = 'UTF-8'
+)
+```
+
+### 损失函数
+
+```{r eval=F}
+train_data_3.0_underc_meanhour_train <- 
+    train_data_3.0_underc_meanhour %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id,t,p) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            train_data_3.0_underc_meanhour %>% 
+            select(
+                setdiff(
+                    test_data_3.0_meanhour %>% names
+                    ,'id'
+                )
+                ) %>% 
+            select(-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05underc_meanhour,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    )
+add2evaluation::phv_metric(
+    train_data_3.0_underc_meanhour_train$short_name
+    ,train_data_3.0_underc_meanhour_train$t
+    ,train_data_3.0_underc_meanhour_train$p
+    ,train_data_3.0_underc_meanhour_train$predicition)
+```
+
+
+### 总结
+
+
+1. 尝试拆开做特征工程不错。
 
 # evaluation
 
