@@ -42,6 +42,26 @@ file.copy(
     1. 调整排版，fold部分细节。
     1. 增加使用它`reprex`反馈代码的方式，见 \@ref(reprex)
     1. 下掉失去实际意义的函数和代码。
+    1. $\surd$自定义损失函数
+    : 我感觉就是MAE啊，因为没有改变权重啊。
+    : `demo(topic = 'custom_objective',package = 'xgboost')`
+        这是demo
+    1. $\surd$用平均数
+    1. $\surd$直接乘以倍数。
+    : 如果异常值出现两极化，应该要慎重，会导致预测值处于中间，对一部分值预测低，一部分预测高。
+
+
+```{r}
+model_log <- 
+    fread(
+        file.path('data','model_log','20181110_model_log.csv')
+        ,encoding = 'UTF-8'
+    )
+```
+
+```{r}
+model_log
+```
 
 # EDA
 
@@ -652,7 +672,1057 @@ runVar_data %>%
 ```
 
 
+# Model
+
+## baseline xgboost tweedie
+
+### d* data
+
+```{r eval=F}
+set.seed(123)
+split <- sample(nrow(train_data_3.0),nrow(train_data_3.0)*0.8,replace = T)
+train_data03.0 <- train_data_3.0[split,]
+valid_data03.0 <- train_data_3.0[-split,]
+dtrain03.0 <- xgb.DMatrix(data = as.matrix(train_data03.0 %>% select(-t,-tsi_real,-p)),
+                      label = train_data03.0$p+100
+                      # gamma 回归 y > 0
+                        )
+dvalid03.0 <- xgb.DMatrix(data = as.matrix(valid_data03.0 %>% select(-t,-tsi_real,-p)),
+                      label = valid_data03.0$p+100
+                        )
+watchlist03.0 <- list(train=dtrain03.0,
+                  valid=dvalid03.0
+                  )
+```
+
+```{r eval=F}
+library(lubridate)
+xgb.DMatrix.save(
+    dtrain03.0
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dtrain03.0.buffer',sep='_')
+    )
+)
+xgb.DMatrix.save(
+    dvalid03.0
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dvalid03.0.buffer',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+dtrain03.0 <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dtrain03.0.buffer') %>% max
+        )
+    )
+dvalid03.0 <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dvalid03.0.buffer') %>% max
+        )
+    )
+```
+
+### param tuning
+
+`expand.grid`函数实现穷举。
+
+```{r eval=F}
+eta <- 
+    # c(0.1,0.2,0.3) # 0.1
+    # c(0.1)
+    # c(0.05,0.1,0.15)
+    0.3
+nround <- 
+    200
+max_depth <- 
+    # c(5,7,10)
+    # c(8,10,12)
+    # c(9,10,11)
+    11
+    # c(4,5,6)
+min_child_weight <- 
+    # c(30,35,40)
+    # c(37,40,43)
+    # c(38,40,42)
+    42
+    # c(18,20,22)
+    # c(17,18,19)
+    # c(16,17)
+gamma <- 
+    # c(1,2,3)
+    # c(2.5,3,3.5)
+    # c(2.25,2.5,2.75)
+    2.5
+    # c(0.7,1.0,1.2)
+    # c(0.6,0.65,0.7)
+subsample <- 
+    # c(0.3,0.5,0.7)
+    c(0.6,0.7,0.8)
+    # c(0.65,0.7,0.75)
+colsample_bytree <- 
+    # c(0.3,0.5,0.7)
+    c(0.4,0.5,0.6)
+    # c(0.6,0.7,0.8)
+    # c(0.75,0.8,0.85)
+    # c(0.825,0.85,0.875)
+    # c(0.8725,0.875,0.8775)
+    # c(0.87,0.8725,0.874)
+    # c(0.86875,0.87,0.87125)
+nfold <- 
+    # c(5,10,15)
+    # c(15,18,20)
+    # c(16,18,19)
+    # 18
+    # c(20,25,30)
+    30
+hyper_grid <- 
+    expand.grid(
+        eta=eta,
+        nround=nround,
+        max_depth = max_depth,
+        min_child_weight = min_child_weight,
+        gamma = gamma,
+        subsample = subsample,
+        colsample_bytree = colsample_bytree,
+        nfold = nfold
+    )
+hyper_grid
+```
+
+```{r eval=F}
+xgb_hyper_grid <- 
+    function(eta,nround,max_depth,min_child_weight,gamma,subsample,colsample_bytree,nfold){
+        set.seed(123)
+        xgb <- xgb.train(
+         data=dtrain03.0,
+         ## 1
+           eta = eta,
+           nround=nround,
+         ## 2
+           max_depth = max_depth,
+           min_child_weight = min_child_weight,  
+           gamma = gamma,
+         ## 3
+           subsample = subsample,
+           colsample_bytree = colsample_bytree,
+         ## 评价标准
+           eval.metric = "rmse",
+         ## objective
+           objective = "reg:tweedie", ## 这是一个回归问题
+         ## 其他
+           seed = 123,
+           watchlist=watchlist03.0,
+           nfold = nfold,
+           early_stopping_rounds = 50,
+           nthread = 8
+           )
+        # data.table::data.table(
+        #     best_score = xgb$best_score[1]
+        #     ,best_iteration = xgb$best_iteration
+        #     ,niter = xgb$niter
+        bind_cols(
+            xgb$evaluation_log %>% 
+                dplyr::slice(c(xgb$best_iteration))
+            ,xgb$params %>% 
+                as.data.frame()
+        )
+        # 对比参数和结果，指导调整参数。
+    }
+```
+
+1. 注意一定要重新跑`dmatrix`，不然会闪退。
+
+```{r eval=F}
+set.seed(123)
+find_rmse <- 
+    hyper_grid %>% 
+    mutate(mod = pmap(
+                      list(eta=eta
+                           ,nround=nround
+                           ,max_depth=max_depth
+                           ,min_child_weight=min_child_weight
+                           ,gamma=gamma
+                           ,subsample=subsample
+                           ,colsample_bytree=colsample_bytree
+                           ,nfold=nfold
+                           )
+                      ,xgb_hyper_grid
+                      )
+               ) %>% 
+    select(mod) %>% 
+    unnest() %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+1. `tweedie`下降很快。
+
+```{r eval=F}
+find_rmse %>% 
+    # filter(valid_rmse == min(valid_rmse))
+    # arrange(valid_rmse-train_rmse)
+    arrange(valid_rmse)
+```
+
+### model
+
+```{r}
+get_log_xgb <- function(x,start_time,end_time,output='xgboost_result_baseline_tweedie.csv'){
+    # lose start_time or end_time
+    # results
+    # Error in .Call(`_dplyr_mutate_impl`, df, dots) : 
+    #     promise already under evaluation: recursive default argument reference or earlier problems?
+    xgb_parms <- x$params %>% 
+        as.data.frame() 
+    sys_name <- 
+        Sys.info() %>% 
+        t() %>% 
+        as.data.frame() %>% 
+        select(sysname)
+    bind_cols(
+        xgb_parms,sys_name
+    ) %>%
+        mutate(
+            start_time = start_time
+            ,end_time = end_time
+        ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+}
+```
+
+```{r eval=F}
+set.seed(123)
+start_time <- now()
+xgb_base05 <- xgb.train(
+    data=dtrain03.0,
+    ## 1
+    eta = 0.3,
+    nround=200,
+    ## 2
+    max_depth = 11,
+    min_child_weight = 42,  
+    gamma = 2.5,
+    ## 3
+    subsample = 0.8	,
+    colsample_bytree = 0.6,
+    ## 评价标准
+    ## eval.metric = "error",
+    eval.metric = "mae",
+    eval.metric = "rmse",
+    ## eval.metric = ks_value,
+    ## eval.metric = "auc",
+    ## eval.metric = "logloss",
+    ## objective
+    objective = "reg:tweedie", ## 这是一个回归问题
+    ## 其他
+    seed = 123,
+    watchlist=watchlist03.0,
+    nfold = 30,
+    early_stopping_rounds = 50,
+    nthread = 8
+    )
+end_time <- now()
+get_log_xgb(xgb_base05,start_time,end_time)
+```
+
+```{r eval=F}
+xgb.save(
+    xgb_base05
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'xgb_base05.model',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+xgb_base05 <- 
+    xgb.load(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('xgb_base05.model') %>% max
+        )
+    )
+```
+
+### predict
+
+```{r eval=F}
+test_data_3.0 %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            test_data_3.0 %>% 
+            select(-id,-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_prediction_xgboostbaseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+没有提升了，下一步做lag变量。
+
+
+
+### imp
+
+```{r eval=F}
+xgb.importance(feature_names = colnames(dtrain03.0), model = xgb_base05) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_imp_tbl.csv',sep='_')
+        )
+    ) 
+```
+
+```{r eval=F}
+fread(file.path(
+    'data'
+    ,list.files('data') %>% str_subset('jiaxiang_imp_tbl.csv') %>% max
+)
+,encoding = 'UTF-8'
+)
+```
+
+### 总结
+
+
+
+
+
+
+
+
+## baseline xgboost tweedie delete underc data
+
+```{r}
+drop_data_underc <- function(x){
+    # x %>% 
+    train_data_3.0 %>% 
+    mutate(
+        c = case_when(
+            short_name == 1 ~ 10
+            ,short_name == 2 ~ 10
+            ,short_name == 3 ~ 40
+            ,short_name == 4 ~ 50
+        )
+        # 装机功率
+    ) %>% 
+    filter(p >= c*0.03) %>% 
+    # 实际功率值大于等于Ci*0.03
+    select(-c)
+}
+```
+
+```{r eval=F}
+train_data_3.0_underc <- drop_data_underc(train_data_3.0)
+```
+
+### d* data
+
+```{r eval=F}
+set.seed(123)
+split <- sample(nrow(train_data_3.0_underc),nrow(train_data_3.0_underc)*0.8,replace = T)
+train_data03.0underc <- train_data_3.0_underc[split,]
+valid_data03.0underc <- train_data_3.0_underc[-split,]
+dtrain03.0underc <- xgb.DMatrix(data = as.matrix(train_data03.0underc %>% select(-t,-tsi_real,-p)),
+                      label = train_data03.0underc$p+100
+                      # gamma 回归 y > 0
+                        )
+dvalid03.0underc <- xgb.DMatrix(data = as.matrix(valid_data03.0underc %>% select(-t,-tsi_real,-p)),
+                      label = valid_data03.0underc$p+100
+                        )
+watchlist03.0underc <- list(train=dtrain03.0underc,
+                  valid=dvalid03.0underc
+                  )
+```
+
+```{r eval=F}
+library(lubridate)
+xgb.DMatrix.save(
+    dtrain03.0underc
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dtrain03.0underc.buffer',sep='_')
+    )
+)
+xgb.DMatrix.save(
+    dvalid03.0underc
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dvalid03.0underc.buffer',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+dtrain03.0underc <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dtrain03.0underc.buffer') %>% max
+        )
+    )
+dvalid03.0underc <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dvalid03.0underc.buffer') %>% max
+        )
+    )
+```
+
+### param tuning
+
+`expand.grid`函数实现穷举。
+
+```{r eval=F}
+eta <- 
+    # c(0.1,0.2,0.3) # 0.1
+    # c(0.1)
+    # c(0.05,0.1,0.15)
+    0.3
+nround <- 
+    200
+max_depth <- 
+    # c(5,7,10)
+    # c(8,10,12)
+    # c(9,10,11)
+    11
+    # c(4,5,6)
+min_child_weight <- 
+    # c(30,35,40)
+    # c(37,40,43)
+    # c(38,40,42)
+    42
+    # c(18,20,22)
+    # c(17,18,19)
+    # c(16,17)
+gamma <- 
+    # c(1,2,3)
+    # c(2.5,3,3.5)
+    # c(2.25,2.5,2.75)
+    2.5
+    # c(0.7,1.0,1.2)
+    # c(0.6,0.65,0.7)
+subsample <- 
+    # c(0.3,0.5,0.7)
+    c(0.6,0.7,0.8)
+    # c(0.65,0.7,0.75)
+colsample_bytree <- 
+    # c(0.3,0.5,0.7)
+    c(0.4,0.5,0.6)
+    # c(0.6,0.7,0.8)
+    # c(0.75,0.8,0.85)
+    # c(0.825,0.85,0.875)
+    # c(0.8725,0.875,0.8775)
+    # c(0.87,0.8725,0.874)
+    # c(0.86875,0.87,0.87125)
+nfold <- 
+    # c(5,10,15)
+    # c(15,18,20)
+    # c(16,18,19)
+    # 18
+    # c(20,25,30)
+    30
+hyper_grid <- 
+    expand.grid(
+        eta=eta,
+        nround=nround,
+        max_depth = max_depth,
+        min_child_weight = min_child_weight,
+        gamma = gamma,
+        subsample = subsample,
+        colsample_bytree = colsample_bytree,
+        nfold = nfold
+    )
+hyper_grid
+```
+
+```{r eval=F}
+xgb_hyper_grid <- 
+    function(eta,nround,max_depth,min_child_weight,gamma,subsample,colsample_bytree,nfold){
+        set.seed(123)
+        xgb <- xgb.train(
+         data=dtrain03.0underc,
+         ## 1
+           eta = eta,
+           nround=nround,
+         ## 2
+           max_depth = max_depth,
+           min_child_weight = min_child_weight,  
+           gamma = gamma,
+         ## 3
+           subsample = subsample,
+           colsample_bytree = colsample_bytree,
+         ## 评价标准
+           eval.metric = "rmse",
+         ## objective
+           objective = "reg:tweedie", ## 这是一个回归问题
+         ## 其他
+           seed = 123,
+           watchlist=watchlist03.0underc,
+           nfold = nfold,
+           early_stopping_rounds = 50,
+           nthread = 8
+           )
+        # data.table::data.table(
+        #     best_score = xgb$best_score[1]
+        #     ,best_iteration = xgb$best_iteration
+        #     ,niter = xgb$niter
+        bind_cols(
+            xgb$evaluation_log %>% 
+                dplyr::slice(c(xgb$best_iteration))
+            ,xgb$params %>% 
+                as.data.frame()
+        )
+        # 对比参数和结果，指导调整参数。
+    }
+```
+
+1. 注意一定要重新跑`dmatrix`，不然会闪退。
+
+```{r eval=F}
+set.seed(123)
+find_rmse <- 
+    hyper_grid %>% 
+    mutate(mod = pmap(
+                      list(eta=eta
+                           ,nround=nround
+                           ,max_depth=max_depth
+                           ,min_child_weight=min_child_weight
+                           ,gamma=gamma
+                           ,subsample=subsample
+                           ,colsample_bytree=colsample_bytree
+                           ,nfold=nfold
+                           )
+                      ,xgb_hyper_grid
+                      )
+               ) %>% 
+    select(mod) %>% 
+    unnest() %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+1. `tweedie`下降很快。
+
+```{r eval=F}
+find_rmse %>% 
+    # filter(valid_rmse == min(valid_rmse))
+    # arrange(valid_rmse-train_rmse)
+    arrange(valid_rmse)
+```
+
+### model
+
+```{r}
+get_log_xgb <- function(x,start_time,end_time,output='xgboost_result_baseline_tweedie.csv'){
+    # lose start_time or end_time
+    # results
+    # Error in .Call(`_dplyr_mutate_impl`, df, dots) : 
+    #     promise already under evaluation: recursive default argument reference or earlier problems?
+    xgb_parms <- x$params %>% 
+        as.data.frame() 
+    sys_name <- 
+        Sys.info() %>% 
+        t() %>% 
+        as.data.frame() %>% 
+        select(sysname)
+    bind_cols(
+        xgb_parms,sys_name
+    ) %>%
+        mutate(
+            start_time = start_time
+            ,end_time = end_time
+        ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+}
+```
+
+```{r eval=F}
+set.seed(123)
+start_time <- now()
+xgb_base05underc <- xgb.train(
+    data=dtrain03.0underc,
+    ## 1
+    eta = 0.3,
+    nround=200,
+    ## 2
+    max_depth = 11,
+    min_child_weight = 42,  
+    gamma = 2.5,
+    ## 3
+    subsample = 0.8	,
+    colsample_bytree = 0.6,
+    ## 评价标准
+    ## eval.metric = "error",
+    eval.metric = "mae",
+    eval.metric = "rmse",
+    ## eval.metric = ks_value,
+    ## eval.metric = "auc",
+    ## eval.metric = "logloss",
+    ## objective
+    objective = "reg:tweedie", ## 这是一个回归问题
+    ## 其他
+    seed = 123,
+    watchlist=watchlist03.0underc,
+    nfold = 30,
+    early_stopping_rounds = 50,
+    nthread = 8
+    )
+end_time <- now()
+get_log_xgb(xgb_base05underc,start_time,end_time)
+```
+
+```{r eval=F}
+xgb.save(
+    xgb_base05underc
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'xgb_base05underc.model',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+xgb_base05underc <- 
+    xgb.load(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('xgb_base05underc.model') %>% max
+        )
+    )
+```
+
+### predict
+
+```{r eval=F}
+setdiff(
+    train_data_3.0_underc %>% select(-t,-tsi_real,-p) %>% names
+    ,test_data_3.0 %>% select(-id,-t) %>% names
+)
+```
+
+
+```{r eval=F}
+test_data_3.0 %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            test_data_3.0 %>% 
+            select(-id,-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05underc,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_prediction_xgboostbaseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+### imp
+
+```{r eval=F}
+xgb.importance(feature_names = colnames(dtrain03.0underc), model = xgb_base05underc) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_imp_tbl.csv',sep='_')
+        )
+    ) 
+```
+
+```{r eval=F}
+fread(file.path(
+    'data'
+    ,list.files('data') %>% str_subset('jiaxiang_imp_tbl.csv') %>% max
+)
+,encoding = 'UTF-8'
+)
+```
+
+### 损失函数
+
+```{r eval=F}
+train_data_3.0_underc_train <- 
+    train_data_3.0_underc %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id,t,p) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            train_data_3.0_underc %>% 
+            select(
+                setdiff(
+                    test_data_3.0 %>% names
+                    ,'id'
+                )
+                ) %>% 
+            select(-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05underc,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    )
+add2evaluation::phv_metric(
+    train_data_3.0_underc_train$short_name
+    ,train_data_3.0_underc_train$t
+    ,train_data_3.0_underc_train$p
+    ,train_data_3.0_underc_train$predicition)
+```
+
+
+### 总结
+
+
+1. 官方的异常值剔除有意义。
+
+
+## baseline xgboost tweedie delete underc_meanday data daily data y and x
+
+
+```{r eval=F}
+train_data_3.0_underc_meanday <- 
+train_data_3.0_underc %>% 
+    mutate(t = floor_date(t,unit = 'day')) %>% 
+    group_by(short_name,t) %>% 
+    summarise_all(mean)
+test_data_3.0_underc_meanday <- 
+test_data_3.0 %>% 
+    select(id,short_name,t) %>% 
+    mutate(t_on = floor_date(t,unit = 'day')) %>% 
+    left_join(
+        test_data_3.0 %>% 
+        mutate(t = floor_date(t,unit = 'day')) %>% 
+        group_by(short_name,t) %>% 
+        summarise_all(mean) %>% 
+        select(-id)
+        ,by=c('short_name'='short_name','t_on'='t')
+    ) %>% 
+    select(-t_on) %>% 
+    ungroup()
+```
+
+### d* data
+
+```{r eval=F}
+set.seed(123)
+split <- sample(nrow(train_data_3.0_underc_meanday),nrow(train_data_3.0_underc_meanday)*0.8,replace = T)
+train_data03.0underc_meanday <- train_data_3.0_underc_meanday[split,]
+valid_data03.0underc_meanday <- train_data_3.0_underc_meanday[-split,]
+dtrain03.0underc_meanday <- xgb.DMatrix(data = as.matrix(train_data03.0underc_meanday %>% select(-t,-tsi_real,-p)),
+                      label = train_data03.0underc_meanday$p+100
+                      # gamma 回归 y > 0
+                        )
+dvalid03.0underc_meanday <- xgb.DMatrix(data = as.matrix(valid_data03.0underc_meanday %>% select(-t,-tsi_real,-p)),
+                      label = valid_data03.0underc_meanday$p+100
+                        )
+watchlist03.0underc_meanday <- list(train=dtrain03.0underc_meanday,
+                  valid=dvalid03.0underc_meanday
+                  )
+```
+
+```{r eval=F}
+library(lubridate)
+xgb.DMatrix.save(
+    dtrain03.0underc_meanday
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dtrain03.0underc_meanday.buffer',sep='_')
+    )
+)
+xgb.DMatrix.save(
+    dvalid03.0underc_meanday
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'dvalid03.0underc_meanday.buffer',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+dtrain03.0underc_meanday <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dtrain03.0underc_meanday.buffer') %>% max
+        )
+    )
+dvalid03.0underc_meanday <- 
+    xgb.DMatrix(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('dvalid03.0underc_meanday.buffer') %>% max
+        )
+    )
+```
+
+### model
+
+```{r eval=F}
+get_log_xgb <- function(x,start_time,end_time,output='xgboost_result_baseline_tweedie.csv'){
+    # lose start_time or end_time
+    # results
+    # Error in .Call(`_dplyr_mutate_impl`, df, dots) : 
+    #     promise already under evaluation: recursive default argument reference or earlier problems?
+    xgb_parms <- x$params %>% 
+        as.data.frame() 
+    sys_name <- 
+        Sys.info() %>% 
+        t() %>% 
+        as.data.frame() %>% 
+        select(sysname)
+    bind_cols(
+        xgb_parms,sys_name
+    ) %>%
+        mutate(
+            start_time = start_time
+            ,end_time = end_time
+        ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(now() %>% str_remove_all('-|\\s|:'),'xgboost_result_baseline_tweedie.csv',sep='_')
+        )
+    )
+}
+```
+
+```{r eval=F}
+set.seed(123)
+start_time <- now()
+xgb_base05underc_meanday <- xgb.train(
+    data=dtrain03.0underc_meanday,
+    ## 1
+    eta = 0.3,
+    nround=200,
+    ## 2
+    max_depth = 11,
+    min_child_weight = 42,  
+    gamma = 2.5,
+    ## 3
+    subsample = 0.8	,
+    colsample_bytree = 0.6,
+    ## 评价标准
+    ## eval.metric = "error",
+    eval.metric = "mae",
+    eval.metric = "rmse",
+    ## eval.metric = ks_value,
+    ## eval.metric = "auc",
+    ## eval.metric = "logloss",
+    ## objective
+    objective = "reg:tweedie", ## 这是一个回归问题
+    ## 其他
+    seed = 123,
+    watchlist=watchlist03.0underc_meanday,
+    nfold = 30,
+    early_stopping_rounds = 50,
+    nthread = 8
+    )
+end_time <- now()
+get_log_xgb(xgb_base05underc_meanday,start_time,end_time)
+```
+
+```{r eval=F}
+xgb.save(
+    xgb_base05underc_meanday
+    ,file.path(
+        'data'
+        ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'xgb_base05underc_meanday.model',sep='_')
+    )
+)
+```
+
+```{r eval=F}
+xgb_base05underc_meanday <- 
+    xgb.load(
+        file.path(
+            'data'
+            ,list.files('data') %>% str_subset('xgb_base05underc_meanday.model') %>% max
+        )
+    )
+```
+
+### predict
+
+```{r eval=F}
+setdiff(
+    train_data_3.0_underc_meanday %>% select(-t,-tsi_real,-p) %>% names
+    ,test_data_3.0 %>% select(-id,-t) %>% names
+)
+```
+
+
+```{r eval=F}
+test_data_3.0_underc_meanday %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            test_data_3.0_underc_meanday %>% 
+            select(-id,-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05underc_meanday,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    ) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_prediction_xgboostbaseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
+### imp
+
+```{r eval=F}
+xgb.importance(feature_names = colnames(dtrain03.0underc_meanday), model = xgb_base05underc_meanday) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_imp_tbl.csv',sep='_')
+        )
+    ) 
+```
+
+```{r eval=F}
+fread(file.path(
+    'data'
+    ,list.files('data') %>% str_subset('jiaxiang_imp_tbl.csv') %>% max
+)
+,encoding = 'UTF-8'
+)
+```
+
+### 损失函数
+
+```{r eval=F}
+train_data_3.0_underc_meanday_train <- 
+    train_data_3.0_underc_meanday %>% 
+    ungroup %>% 
+    # unless
+    # Error in mutate_impl(.data, dots) : Column `predicition` must be length 11808 (the group size) or one, not 46571
+    select(id,t,p) %>% 
+    mutate(
+        predicition = 
+            # 我也是醉了，prediction
+            train_data_3.0_underc_meanday %>% 
+            select(
+                setdiff(
+                    test_data_3.0 %>% names
+                    ,'id'
+                )
+                ) %>% 
+            select(-t) %>% 
+            as.matrix %>% 
+            predict(xgb_base05underc_meanday,.) %>% 
+            `-`(100)
+            # length()
+            # 46571
+            # round(.,1)
+    )
+add2evaluation::phv_metric(
+    train_data_3.0_underc_meanday_train$short_name
+    ,train_data_3.0_underc_meanday_train$t
+    ,train_data_3.0_underc_meanday_train$p
+    ,train_data_3.0_underc_meanday_train$predicition)
+```
+
+
+### 总结
+
+
+1. 官方的异常值剔除有意义。
+
+
+
 # evaluation
+
+```{r eval=F}
+sample_train_yhat <- 
+    train_data_3.0 %>%
+    select(short_name,t,p) %>% 
+    ungroup() %>% 
+    mutate(phat = predict(xgb_base05,as.matrix(train_data_3.0 %>% select(-t,-tsi_real,-p)))-100) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'sample_train_yhat.csv',sep='_')
+        )
+    )
+```
+
+```{r eval=F}
+library(add2evaluation)
+phv_metric(
+    id = sample_train_yhat$short_name
+    ,t = sample_train_yhat$t
+    ,y = sample_train_yhat$p
+    ,yhat = sample_train_yhat$phat
+)
+```
+
 
 
 
@@ -729,7 +1799,7 @@ train 组多出变量
 1. 每个季度对于功率的影响也不大，可以不考了季度的影响；
 1. 功率中出现了一半的负值（即实际功率中的负值是因为机组在发电不足时自身会消耗电能），个人感觉可以额外建模之类的操作，不建议全量建模
 
-```{r}
+```{r eval=F}
 eda_data_1 <- 
     train_data_1 %>% 
     group_by(short_name,year(t),quarter(t)) 
@@ -750,7 +1820,7 @@ eda_data_1 %>%
     )
 ```
  
-```{r}
+```{r eval=F}
 fread(file.path(
     'data'
     ,list.files('data') %>% str_subset('jiaxiang_edadata1.csv') %>% max
@@ -763,7 +1833,7 @@ fread(file.path(
     1. 考虑gamma分布。
 1. $\surd$ 季度因素不大
 
-```{r}
+```{r eval=F}
 train_data_1 %>% 
     group_by(short_name) %>% 
     sample_n(1000) %>% 
@@ -796,7 +1866,7 @@ eda_data_1 %>%
     )
 ```
 
-```{r}
+```{r eval=F}
 fread(file.path(
     'data'
     ,list.files('data') %>% str_subset('jiaxiang_edadata2.csv') %>% max
@@ -846,7 +1916,7 @@ eda_data_1 %>%
     )
 ```
 
-```{r}
+```{r eval=F}
 fread(file.path(
     'data'
     ,list.files('data') %>% str_subset('jiaxiang_edadata4.csv') %>% max
@@ -1015,7 +2085,7 @@ https://jiaxiangli.netlify.com/2018/04/training-model/
 
 ## 四个发电板实发辐照度相关性 {#4psi4}
 
-```{r}
+```{r eval=F}
 eda_data_1 %>% 
     select(short_name,t,tsi_real) %>% 
     mutate(t = as.Date(t)) %>% 
@@ -4127,4 +5197,66 @@ pred_h2o <- h2o.predict(automl_leader, newdata = test_h2o)
 1. catboost     - 武神
 1. lightGBM     - 武神
 1. TensorFlow R - 武神
+
+## 低估情况分析
+
+```{r eval=F}
+library(tidyverse)
+library(lubridate)
+plot_data_1 <- 
+    train_data_3.0_underc_meanday_train %>% 
+    rename(
+        id = short_name
+        ,t = t
+        ,y = p
+        ,yhat = predicition
+    ) %>%
+    mutate(
+        c = case_when(
+            id == 1 ~ 10
+            ,id == 2 ~ 10
+            ,id == 3 ~ 40
+            ,id == 4 ~ 50
+        )
+        # 装机功率
+    ) %>% 
+    filter(y >= c*0.03) %>% 
+    # 实际功率值大于等于Ci*0.03
+    # mutate(yr = year(t), m = month(t), d = day(t)) %>%
+    mutate(t = floor_date(t,unit = 'days')) %>% 
+    group_by(id,t) %>%
+    summarise(
+        y = mean(y)
+        ,yhat = mean(yhat)
+    ) %>%
+    ungroup()
+plot_data_1 %>% 
+    ggplot() +
+        geom_line(aes(t,y,col='real'),alpha=0.99) +
+        geom_line(aes(t,yhat,col='prediction'),alpha=0.2) +
+        facet_wrap(~id,nrow = 2) +
+        labs(colour = '')
+plot_data_2 <- 
+    plot_data_1 %>% 
+    mutate(t = floor_date(t,unit = 'months')) %>% 
+    group_by(id,t) %>%
+    summarise(
+        y = mean(y)
+        ,yhat = mean(yhat)
+    ) %>%
+    ungroup()
+ggsave(
+  file.path('pic'
+            ,paste0(now() %>% str_remove_all('[^[:digit:]]'),'_','使用平均值y和x来预测','.png')
+            )
+)
+```
+```{r eval=F}
+plot_data_2 %>% 
+    ggplot() +
+        geom_line(aes(t,y,col='real'),alpha=0.99) +
+        geom_line(aes(t,yhat,col='prediction'),alpha=0.5) +
+        facet_wrap(~id,nrow = 2) +
+        labs(colour = '')
+```
 
