@@ -7,3 +7,9 @@ model_name,socre,metrics,pc,note
 181108_xgb_base05.model,0.14***2,0.1164625,mac,尝试拆开做特征工程不错
 181111_xgb_base05.model,0.14**30,0.1192724,mac,增加rounds，变得更差了，现在metrics使用得是valid组。
 181111_xgb_base05.model,0.14***2,0.1205190,mac,mae超参数grid后，还增加了?但是成绩还提升了。
+181111_xgb_base05.model,0.139661,0.1164453,mac,add pca
+181111_xgb_base05.model,0.14***7,0.1159299,mac,add pca 1-5 成绩下降了
+181112_xgb_base05.model,0.24***9,0.1158237,mac,add tsi_real fitted，最好不要加入。
+181112_xgb_base05.model,0.15***3,0.1149667,mac,add pca 1-2 不好，感觉是没有泛化
+
+	
