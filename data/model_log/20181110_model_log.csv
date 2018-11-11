@@ -5,3 +5,5 @@ model_name,socre,metrics,pc,note
 181108_xgb_base05.model,0.23***6,0.1062216,mac,测试组也用平均x，效果更差。
 181108_xgb_base05.model,0.14***2,0.1199594,mac,小时平均不错，因此尝试拆开做特征工程
 181108_xgb_base05.model,0.14***2,0.1164625,mac,尝试拆开做特征工程不错
+181111_xgb_base05.model,0.14**30,0.1192724,mac,增加rounds，变得更差了，现在metrics使用得是valid组。
+181111_xgb_base05.model,0.14***2,0.1205190,mac,mae超参数grid后，还增加了?但是成绩还提升了。

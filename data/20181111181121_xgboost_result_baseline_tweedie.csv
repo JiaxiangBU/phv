@@ -1,0 +1,2 @@
+﻿eta,max_depth,min_child_weight,gamma,subsample,colsample_bytree,eval_metric,eval_metric.1,objective,seed,nfold,nthread,silent,sysname,start_time,end_time
+0.15,11,42,2.5,0.6,0.5,mae,rmse,reg:tweedie,123,30,8,1,Darwin,2018-11-11T10:08:53Z,2018-11-11T10:11:21Z
