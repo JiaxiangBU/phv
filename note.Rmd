@@ -787,7 +787,49 @@ test_tsireal <-
             )
 ```
 
+## add nmf
 
+```{r}
+library(NMF)
+library(tidyverse)
+library(lubridate)
+var_is_numeric <- 
+    train_data_1 %>% 
+        select(-t,-p,-tsi_real) %>% 
+        dplyr::select_if(base::is.numeric) %>% 
+        names
+
+bind_data_nmf <- 
+    bind_rows(
+        train_data_1 %>% 
+            drop_data_underc %>% 
+            select(var_is_numeric)
+        ,test_data_1 %>% 
+            select(var_is_numeric)
+    ) %>% 
+    mutate_all(~.+50)
+nmf_start_time <- now()
+nmf_model <- 
+    nmf(
+        x = bind_data_nmf
+        ,rank = 1
+    )
+nmf_end_time <- now()
+nmf_end_time-nmf_start_time
+# 3s 训练完
+train_length <- train_data_1 %>% drop_data_underc %>% nrow()
+train_nmf <- 
+    nmf_model@fit@W %>% 
+    .[1:train_length]
+test_nmf <- 
+    nmf_model@fit@W %>% 
+    .[(train_length+1):length(.)]
+```
+
+```{r}
+length(train_nmf)
+length(test_nmf);nrow(test_data_1)
+```
 
 # Model
 
