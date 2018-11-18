@@ -1,0 +1,1164 @@
+---
+title: "Power"
+author: "WRQ"
+date: "2018/10/22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+- [Project Document](https://jiaxiangli.netlify.com/slides/phv/note.html)
+- [trelliscope](https://jiaxiangli.netlify.com/slides/phv/trelliscope/index.html)
+
+也可以访问 
+    **p** https://jiaxiangli.netlify.com/slides/phv/trelliscope/p/index.html
+    **tsi** https://jiaxiangli.netlify.com/slides/phv/trelliscope/tsi/index.html
+    **tsi_real** https://jiaxiangli.netlify.com/slides/phv/trelliscope/tsi_real/index.html
+[因子分析 Factor Analysis](https://jiaxiangli.netlify.com/2018/10/factor-analysis/)
+
+- [DART booster — xgboost 0.80 documentation](https://xgboost.readthedocs.io/en/latest/tutorials/dart.html)
+- [你羽翼下的风](https://mp.weixin.qq.com/s/Yix0xVp2SiqaAcuS6Q049g)
+- [HyperparameterHunter](https://github.com/HunterMcGushion/hyperparameter_hunter)
+- [20 interaction effect的解释](https://jiaxiangli.netlify.com/2018/05/intro-to-econometrics/#interactioneffect)
+- [R包本地安装](https://jiaxiangli.netlify.com/2018/04/r-base/)
+
+- [JiaxiangBU](https://github.com/JiaxiangBU/add2evaluation)
+- [add to evaluation of model](https://jiaxiangbu.github.io/add2evaluation/)
+```{r,message=FALSE}
+library(mlr)
+library(data.table)
+library(tidyverse)
+#library(lightgbm)
+#library(catboost)
+library(xgboost)
+library(prophet)
+library(rwavelet)
+setwd('D:/power')
+```
+## load data
+
+电站1，2，3，4的装机功率的值分别为10，10，40，50,预测功率小于0.03*实际功率时该样本不参与评分。
+```{r}
+train1 <- fread('train_1.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+train2 <- fread('train_2.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+train3 <- fread('train_3.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+train4 <- fread('train_4.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+test1 <- fread('test_1.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+test2 <- fread('test_2.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+test3 <- fread('test_3.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+test4 <- fread('test_4.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+```
+
+```{r}
+train1_ <- train1 %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(1))
+  
+
+train2_ <- train2 %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(2)) 
+
+train3_ <- train3 %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(3))
+
+train4_ <- train4 %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(4)) 
+
+train <- rbindlist(l = list(train1_,train2_,train3_,train4_))
+```
+
+```{r}
+train_mean <- train[,lapply(.SD,mean),by = .(GRP,year,month,day),.SDcols = c("irradiance","Speed","Direction","Temp","Pressure","humidity","real_irradiance","Power")]
+fwrite(train_mean,file = 'train_mean.csv')
+```
+
+```{r}
+test1_ <- test1 %>% 
+  select(-id) %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(1))
+  
+test2_ <- test2 %>% 
+  select(-id) %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(2))
+
+test3_ <- test3 %>% 
+  select(-id) %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(3))
+
+test4_ <- test4 %>% 
+  select(-id) %>% 
+    separate(col = 'time',sep = ' ',into = c('Date','Time')) %>% 
+    separate(col = 'Date',into = c('year','month','day'),sep = '-') %>% 
+    separate(col = 'Time',into = c('H','M','S'), sep = ':') %>% 
+    mutate(GRP = as.factor(4)) 
+
+test <- rbindlist(l = list(test1_,test2_,test3_,test4_))
+```
+
+```{r}
+str(train)
+```
+
+```{r}
+print(cat('train1相关系数',cor(train1_$real_irradiance,train1_$Power)))
+print(cat('train2相关系数',cor(train2_$real_irradiance,train2_$Power)))
+print(cat('train3相关系数',cor(train3_$real_irradiance,train3_$Power)))
+print(cat('train4相关系数',cor(train4_$real_irradiance,train4_$Power)))
+print(cat('train相关系数',cor(train$real_irradiance,train$Power)))
+```
+## mlr.xgboost
+```{r}
+train.xgb <- train[,.(month,day,H,irradiance,Speed,Direction,Temp,Pressure,humidity,real_irradiance,Power,GRP)]
+train.xgb$GRP <- as.integer(train.xgb$GRP)
+train.xgb <- createDummyFeatures(obj = as.data.frame(train.xgb),target = 'Power',cols = c('month','day','H'))
+task <- makeRegrTask(id = 'power',data = train.xgb,target = 'Power')
+lrn.xgb <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(objective = 'reg:linear' ,eta  = 0.1,nrounds = 1000,max_depth =6,
+subsample = 0.9,colsample_bytree =0.9, early_stopping_rounds = 20))
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+
+r = resample(learner = lrn.xgb, task = task, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+
+model.xgb = train(lrn.xgb,task)
+
+## model.xgb中包含real_irradiance实发辐照度 ,但是test文件中没有real_irradiance指标
+```
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=1.2243323
+Runtime: 2934.56
+
+- `cut_interval` makes n groups with equal range, 
+- `cut_number` makes n groups with (approximately) equal numbers of observations; 
+- `cut_width` makes groups of width width.
+```{r}
+# 不包含日期特征
+train.xgb <- train[,.(irradiance,Speed,Direction,Temp,Pressure,humidity,Power,GRP)]
+train.xgb$GRP <- as.integer(train.xgb$GRP)
+task <- makeRegrTask(id = 'power',data = train.xgb,target = 'Power')
+lrn.xgb <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(objective = 'reg:linear' ,
+                                                                                eta  = 0.1,
+                                                                                nrounds = 2000,
+                                                                                max_depth = 6,
+                                                                                subsample = 0.9,
+                                                                                colsample_bytree =0.9,
+                                                                                early_stopping_rounds = 20))
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+
+r1 = resample(learner = lrn.xgb, task = task, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+
+model.xgb1 = train(lrn.xgb,task)
+```
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=2.7772884
+Runtime: 1419.54
+```{r}
+# 不含有实发辐照度,仅保留4,5,6,7,8,9,10月数据
+# resampling
+train.xgb2 <- train[month %in% c('04','05','06','07','08','09','10'),.(month,day,H,irradiance,Speed,Direction,Temp,Pressure,humidity,Power,GRP)]
+
+train.xgb2$month <- as.factor(train.xgb2$month)
+train.xgb2$day <- as.factor(train.xgb2$day)
+train.xgb2$H <- as.factor(train.xgb2$H)
+
+train.xgb2$GRP <- as.integer(train.xgb2$GRP)
+train.xgb2 <- createDummyFeatures(obj = as.data.frame(train.xgb2),target = 'Power',cols = c('month','day','H'))
+task2 <- makeRegrTask(id = 'power',data = train.xgb2,target = 'Power')
+lrn.xgb <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(objective = 'reg:linear' ,
+                                                                                eta  = 0.1,
+                                                                                nrounds = 2000,
+                                                                                max_depth = 10,
+                                                                                subsample = 0.9,
+                                                                                colsample_bytree =0.9,
+                                                                                early_stopping_rounds = 20))
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+
+r2 = resample(learner = lrn.xgb, task = task2, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+
+model.xgb2 = train(lrn.xgb,task2)
+```
+nrounds = 1000,max_depth = 5:
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=2.1617714
+Runtime: 1729.99
+
+nrounds = 2000,max_depth = 10:
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=1.8885630
+Runtime: 5790.29
+
+```{r}
+# 把booster由gbtree调整为gblinear,eval_metric = 'rmse'
+# 看来gblinear的booster的效果不好
+lrn.xgb2 <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(booster = 'gblinear',
+                                                                                 objective = 'reg:linear',
+                                                                                eta  = 0.1,
+                                                                                nrounds = 1000,
+                                                                                max_depth = 8,
+                                                                                subsample = 0.9,
+                                                                                colsample_bytree =0.9,
+                                                                                early_stopping_rounds = 20,
+                                                                                eval_metric = 'rmse'))
+                                                                                #tree_method  = 'gpu_hist',
+                                                                                #predictor = 'gpu_predictor'
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+
+r3 = resample(learner = lrn.xgb2, task = task2, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+
+model.xgb3 = train(lrn.xgb2,task2)
+```
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=6.0056378
+Runtime: 434.077
+```{r}
+# 把booster调整为dart,eval_metric = 'rmse'
+lrn.xgb4 <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(booster = 'dart',
+                                                                                 objective = 'reg:linear',
+                                                                                eta  = 0.1,
+                                                                                nrounds = 1000,
+                                                                                max_depth = 8,
+                                                                                subsample = 0.9,
+                                                                                colsample_bytree =0.9,
+                                                                                early_stopping_rounds = 20,
+                                                                                eval_metric = 'rmse'))
+                                                                                #tree_method  = 'gpu_hist',
+                                                                                #predictor = 'gpu_predictor'
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+
+r4 = resample(learner = lrn.xgb4, task = task2, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+
+model.xgb4 = train(lrn.xgb4,task2)
+```
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=1.9218663
+Runtime: 5257.34
+```{r}
+# 把booster调整为dart,eval_metric = 'rmse' 
+lrn.xgb5 <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(booster = 'dart',
+                                                                                 objective = 'reg:linear',
+                                                                                 eta  = 0.1,
+                                                                                 nrounds = 2000,
+                                                                                 max_depth = 10,
+                                                                                 subsample = 0.9,
+                                                                                 colsample_bytree =0.9,
+                                                                                 early_stopping_rounds = 20,
+                                                                                 normalize_type = 'forest', 
+                                                                                 gamma = 2,
+                                                                                 lambda =2,
+                                                                                 eval_metric = 'rmse'))
+                                                                                #tree_method  = 'gpu_hist',
+                                                                                #predictor = 'gpu_predictor'
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+
+r5 = resample(learner = lrn.xgb5, task = task2, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+
+model.xgb5 = train(lrn.xgb5,task2)
+```
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=1.9172243
+Runtime: 20977.2
+
+增加normalize_type,gamma,lambda
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=1.8957285
+Runtime: 15879
+
+```{r}
+# 把booster调整为dart,eval_metric = 'rmse'
+lrn.xgb6 <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(booster = 'gbtree',
+                                                                                 objective = 'reg:linear',
+                                                                                 eta  = 0.1,
+                                                                                 nrounds = 2000,
+                                                                                 max_depth = 8,
+                                                                                 colsample_bytree =0.9,
+                                                                                 subsample = 0.9,
+                                                                                 early_stopping_rounds = 20,
+                                                                                 normalize_type = 'forest', 
+                                                                                 gamma = 2,
+                                                                                 lambda =2,
+                                                                                 eval_metric = 'rmse'))
+                                                                                #tree_method  = 'gpu_hist',
+                                                                                #predictor = 'gpu_predictor'
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+r6 = resample(learner = lrn.xgb6, task = task2, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+
+
+lrn = makeTuneWrapper("classif.ksvm", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
+outer = makeResampleDesc("CV", iters = 3)
+r6.outer = resample(lrn.xgb6, task2, resampling = outer, extract = getTuneResult, show.info = FALSE,measures = list(rmse))
+model.xgb6 = train(lrn.xgb6,task2)
+```
+Resample Result
+Task: power
+Learner: regr.xgboost
+Aggr perf: rmse.test.rmse=1.9181958
+Runtime: 3085.82
+```{r}
+# 把booster调整为dart,eval_metric = 'rmse',objective = reg:tweedie
+lrn.xgb7 <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(booster = 'dart',
+                                                                                 objective = 'reg:tweedie',
+                                                                                 eta  = 0.1,
+                                                                                 nrounds = 2000,
+                                                                                 max_depth = 10,
+                                                                                 subsample = 0.9,
+                                                                                 colsample_bytree =0.9,
+                                                                                 early_stopping_rounds = 20,
+                                                                                 normalize_type = 'forest', 
+                                                                                 gamma = 2,
+                                                                                 lambda =2,
+                                                                                 eval_metric = 'rmse'))
+                                                                                #tree_method  = 'gpu_hist',
+                                                                                #predictor = 'gpu_predictor'
+
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+
+# Tuning in inner resampling loop
+ps = makeParamSet(
+  makeIntegerParam("nrounds", lower = 100,upper = 1000,tunable = TRUE),
+  makeNumericParam("eta", lower = 0.01,upper = 1,tunable = TRUE),
+  makeIntegerParam('max_depth',lower = 6,upper = 8,tunable = TRUE),
+  makeNumericParam('subsample',lower = 0.5,upper = 0.9,tunable = TRUE),
+  makeNumericParam('colsample_bytree',lower = 0.5,upper = 0.9,tunable = TRUE),
+  makeDiscreteParam('normalize_type',values = c('forest','tree'),tunable = TRUE),
+  makeNumericParam('gamma',lower = 0,upper = 10,tunable = TRUE),
+  makeNumericParam('lambda',lower = 1,upper = 10,tunable = TRUE)
+)
+ctrl = makeTuneControlRandom(same.resampling.instance = TRUE,maxit = 100)
+inner = makeResampleDesc("Subsample", iters = 2)
+lrn = makeTuneWrapper("regr.xgboost", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
+
+# Outer resampling loop
+outer = makeResampleDesc("CV", iters = 3)
+r7.outer = resample(lrn, task2, resampling = outer, extract = getTuneResult, show.info = FALSE,measures = list(rmse))
+model.xgb7 = train(lrn,task2)
+```
+
+```{r}
+# 把booster由gbtree调整为gblinear,eval_metric = 'rmse',objective = 'reg:gamma',gamma分布要求y变量必须大于0
+# Turn off parameter checking completely
+# configureMlr(on.par.without.desc = "quiet")
+lrn.xgb5 <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(booster = 'gblinear',
+                                                                                 objective = 'reg:gamma',
+                                                                                eta  = 0.1,
+                                                                                nrounds = 1000,
+                                                                                max_depth = 8,
+                                                                                subsample = 0.9,
+                                                                                colsample_bytree =0.9,
+                                                                                early_stopping_rounds = 20,
+                                                                                eval_metric = 'rmse'))
+                                                                                #tree_method  = 'gpu_hist',
+                                                                                #predictor = 'gpu_predictor'
+
+
+```
+
+```{r}
+test.xgb2 <- test[,.(month,day,H,irradiance,Speed,Direction,Temp,Pressure,humidity,GRP)]
+test.xgb2$month <- as.factor(test.xgb2$month)
+test.xgb2$day <- as.factor(test.xgb2$day)
+test.xgb2$H <- as.factor(test.xgb2$H)
+test.xgb2$GRP <- as.integer(test.xgb2$GRP)
+test.xgb2 <- createDummyFeatures(obj = as.data.frame(test.xgb2),cols = c('month','day','H'))
+
+pred1 = predict(model.xgb1,newdata = test.xgb2[,c("irradiance","Speed","Direction","Temp","Pressure","humidity","GRP")])
+fwrite(data.frame('id' = 1:46634,'predicition' = pred1$data),file = '/shzx_data/stock/shzx/tmp/result_xgb1.csv')
+
+pred2 = predict(model.xgb2,newdata = test.xgb2)
+fwrite(data.frame('id' = 1:46634,'predicition' = pred2$data),file = '/shzx_data/stock/shzx/tmp/result_xgb2.csv')
+# 0.167904
+pred3 = predict(model.xgb3,newdata = test.xgb2)
+fwrite(data.frame('id' = 1:46634,'predicition' = pred3$data),file = '/shzx_data/stock/shzx/tmp/result_xgb3.csv')
+# 0.30***9
+
+pred4 = predict(model.xgb4,newdata = test.xgb2)
+fwrite(data.frame('id' = 1:46634,'predicition' = pred4$data),file = '/shzx_data/stock/shzx/tmp/result_xgb4.csv')
+# 0.167629
+
+pred5 = predict(model.xgb5,newdata = test.xgb2)
+fwrite(data.frame('id' = 1:46634,'predicition' = pred5$data),file = '/shzx_data/stock/shzx/tmp/result_xgb5.csv')
+# 0.16***5
+
+pred6 = predict(model.xgb6,newdata = test.xgb2)
+fwrite(data.frame('id' = 1:46634,'predicition' = pred6$data),file = '/shzx_data/stock/shzx/tmp/result_xgb6.csv')
+# 0.16***5
+
+
+```
+
+## catboost with mlr
+```{r}
+makeRLearner.regr.catboost = function() {
+  makeRLearnerRegr(
+    cl = "regr.catboost",
+    package = "catboost",
+    par.set = makeParamSet(
+      makeIntegerLearnerParam(id ="iterations", default=1000,lower=1),
+      makeIntegerLearnerParam(id ="border_count",default=128,lower = 1),
+      makeNumericLearnerParam(id = "learning_rate", default = 0.1, lower = 0), 
+      makeIntegerLearnerParam(id = "depth", default = 6, lower = 1,upper = 16),  
+      makeNumericLearnerParam(id = "rsm", default = 0.9, lower = 0, upper = 1),
+      makeDiscreteLearnerParam(id = 'loss_function', default = 'RMSE' , values = c('MAE','MAPE','Poisson','Quantile','RMSE','LogLinQuantile','SMAPE'),tunable = FALSE)
+    ),
+    par.vals = list(task_type = 'GPU'), # 
+    properties = c("numerics", "weights","factors","missings"),
+    name = "catboost",
+    short.name = "catboost",
+    note = "First try at catboost"
+  )
+}
+
+trainLearner.regr.catboost = function(.learner, .task, .subset, .weights = NULL,  ...) {
+  f = getTaskDesc(.task)
+  data = getTaskData(.task, .subset,target.extra = TRUE)
+  train_pool <- catboost.load_pool(data = as.matrix(data$data), 
+                                   label = data$target)
+  catboost::catboost.train(learn_pool = train_pool, test_pool = NULL)
+  
+}
+
+
+predictLearner.regr.catboost= function(.learner, .model, .newdata, ...) {
+  catboost::catboost.predict(.model$learner.model, catboost.load_pool(as.matrix(.newdata)))
+}
+
+
+
+registerS3method("makeRLearner", "regr.catboost", makeRLearner.regr.catboost)
+registerS3method("trainLearner", "regr.catboost", trainLearner.regr.catboost)
+registerS3method("predictLearner", "regr.catboost", predictLearner.regr.catboost)
+```
+
+```{r,eval=FASLE}
+split <- 0.7
+setorder(tmp,Date,sec_code)
+pool_data <- tmp[c_10_10_4 != -100,] # 剔除目标变量为-100的情况,剔除不需要的变量
+unique_date <- pool_data[,unique(Date)]
+uniqueN_date <- pool_data[,uniqueN(Date)]
+train <- pool_data[Date %in% unique_date[1:round(uniqueN_date*split,digits = 0)],]
+test <- pool_data[Date %in% unique_date[(round(uniqueN_date*split,digits = 0)+ 1):uniqueN_date],]
+train <- train[,lapply(.SD, as.numeric)] #将变量都处理为数值型
+test <- test[, lapply(.SD,as.numeric)] #将变量都处理为数值型
+setDF(train)
+setDF(test)
+features <- setdiff(colnames(pool_data),c('c_10_10_4','sec_code','Date'))
+train_alpha_pool <- catboost.load_pool(data = train[,features], 
+                                 label = train[,'c_10_10_4'])
+test_alpha_pool <- catboost.load_pool(data=test[,features], 
+                                label = test[,'c_10_10_4'])
+
+fit_params <- list(iterations = 1000,
+                   thread_count = 10,
+                   loss_function = 'MultiClass', # MultiClass,MultiClassOneVsAll
+                   # ignored_features = c(4,5),
+                   # use_best_model = TRUE,
+                   border_count = 32,
+                   depth = 10, #树的最大深度
+                   learning_rate = 0.1, #学习率
+                   # class_weights = c(2,1,1,1,1,1),
+                   # l2_leaf_reg = 1, # l2正则化
+                   # class_weights = c(3,1,1,1,1,1), # 类别权重
+                   # od_type = 'Iter',
+                   # od_wait = 30,
+                   # early_stopping_rounds = 10,
+                   custom_loss = c('Accuracy', 'Recall','Precision'),
+                   logging_level = 'Silent',
+                   random_seed = 123, 
+                   task_type='CPU', #R不支持GPU计算,python支持
+                   train_dir = file.path(train_dir_path,'cjy_alpha101_c_10_10_4'))
+
+model_alpha <- catboost.train(learn_pool = train_alpha_pool, test_pool = test_alpha_pool, fit_params)
+```
+
+
+```{r}
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+# 采用嵌套采样评估模型
+outer = makeResampleDesc("CV", iters = 3)
+r = resample(lrn.catboost, task2, resampling = outer, extract = getTuneResult, show.info = FALSE,measures = list(rmse))
+
+```
+
+## lightgbm with mlr
+
+```{r}
+makeRLearner.regr.lightgbm = function() {
+  makeRLearnerRegr(
+    cl = "regr.lightgbm",
+    package = "lightgbm",
+    par.set = makeParamSet(
+      makeIntegerLearnerParam(id ="num_iterations", default=100,lower=1),
+      makeIntegerLearnerParam(id ="verbose",default=1),
+      makeDiscreteLearnerParam(id = "boosting", default = "gbdt", values = c("gbdt", "dart","goss")), 
+      makeNumericLearnerParam(id = "learning_rate", default = 0.1, lower = 0), 
+      makeIntegerLearnerParam(id = "max_depth", default = -1, lower = -1),  
+      makeIntegerLearnerParam(id = "min_data_in_leaf", default = 20, lower = 0), 
+      makeIntegerLearnerParam(id = "num_leaves", default=31, lower=1),
+      makeNumericLearnerParam(id = "feature_fraction", default = 1, lower = 0, upper = 1), 
+      makeNumericLearnerParam(id = "bagging_fraction", default = 1, lower = 0, upper = 1),
+      makeNumericLearnerParam(id = "bagging_freq", default = 0, lower = 0), 
+      makeNumericLearnerParam(id = "min_gain_to_split", default = 0, lower = 0),
+      makeLogicalLearnerParam(id="use_missing",default=TRUE,tunable = FALSE),
+      makeNumericLearnerParam(id = "min_sum_hessian", default=10),
+      makeDiscreteLearnerParam(id = "metric", default = "None",values = c('l1', 'l2','mape'),tunable = FALSE)
+      
+    ),
+    par.vals = list(objective="regression"),
+    properties = c("numerics", "weights","missings"),
+    name = "LightGBM",
+    short.name = "lightgbm",
+    note = "First try at this"
+  )
+}
+
+## 定义train方法
+trainLearner.regr.lightgbm = function(.learner, .task, .subset, .weights = NULL,  ...) {
+  f = getTaskDesc(.task)
+  data = getTaskData(.task, .subset,target.extra = TRUE)
+  lgb.data = lgb.Dataset(as.matrix(data$data), label = data$target)
+  lightgbm::lgb.train(data = lgb.data,
+                      objective="regression",
+                      verbosity = -1, 
+                      verbose = -1,
+                      record = TRUE,...)
+  
+}
+
+## 定义预测方法
+predictLearner.regr.lightgbm= function(.learner, .model, .newdata, ...) {
+  predict(.model$learner.model, as.matrix(.newdata))
+}
+
+## 注册新方法
+registerS3method("makeRLearner", "regr.lightgbm", makeRLearner.regr.lightgbm)
+registerS3method("trainLearner", "regr.lightgbm", trainLearner.regr.lightgbm)
+registerS3method("predictLearner", "regr.lightgbm", predictLearner.regr.lightgbm)
+```
+
+```{r}
+lgb.Dataset_ringratio_list <- generate_lgb.Dataset(data_path = data_path_ringratio,invalid_features = invalid_features,target = 'c_10_10_4',split = 0.7)
+dtrain <- lgb.Dataset_ringratio_list[[1]]
+dtest <- lgb.Dataset_ringratio_list[[2]]
+
+params <- list(objective = "multiclass", metric = "multi_error", num_class = 6)
+
+# To train with valids, use lgb.train, which contains more advanced features
+# valids allows us to monitor the evaluation result on all data in the list
+params <- list(objective = "multiclass", metric = "multi_error", num_class = 6)
+valids <- list(train = dtrain, test = dtest)
+model <- lgb.train(params = params,
+                   data = dtrain,
+                   nrounds = 200,
+                   valids = valids,
+                   min_data = 1,
+                   learning_rate = 1,
+                   max_bin  = 300, # default 255
+                   early_stopping_rounds = 10)
+```
+
+
+```{r}
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+r = resample(learner = lrn.lightgbm, task = task2, resampling = rdesc, show.info = FALSE,measures = list(rmse))
+```
+
+## benchmark
+
+```{r}
+# lrn.xgb <- makeLearner('regr.xgboost',predict.type = 'response',par.vals = list(objective = 'reg:linear' ,eta  = 0.1,nrounds = 1000,max_depth =6, subsample = 0.9, colsample_bytree =0.9, early_stopping_rounds = 20))
+# lrn.lightgbm <- makeLearner('regr.lightgbm',predict.type = 'response',par.vals = list(objective = 'alpha'                                                 num_iterations = 1000,                                                    boosting = "goss", #gbdt, rf, dart, goss                                        learning_rate = 0.1,metric = 'l2_root', # rmse
+#bagging_fraction = 0.9, max_depth = 8))
+# lrn.catboost <- makeLearner('regr.catboost',predict.type = 'response',par.vals = list(objective = 'reg:linear' ,eta  = 0.1,nrounds = 1000,max_depth =6,subsample = 0.9,colsample_bytree =0.9,early_stopping_rounds = 20))
+
+lrns <- list('regr.xgboost','regr.catboost')
+task2 <- makeRegrTask(id = 'power',data = train.xgb2,target = 'Power')
+rdesc = makeResampleDesc("CV", iters = 3, stratify.cols = "GRP")
+bmr = benchmark(lrns, task2, rdesc,measures = list(rmse))
+```
+
+## catboost
+```{r}
+data_train <- train %>% as.data.table()
+data_train <- data_train[month %in% c('04','05','06','07','08','09','10'),.(month,day,H,irradiance,Speed,Direction,Temp,Pressure,humidity,Power,GRP)]
+data_train$month <- as.factor(data_train$month)
+data_train$day <- as.factor(data_train$day)
+data_train$H <- as.factor(data_train$H)
+
+data_test <- test %>% as.data.table()
+data_test <- data_test[,.(month,day,H,irradiance,Speed,Direction,Temp,Pressure,humidity,GRP)]
+data_test$month <- as.factor(data_test$month)
+data_test$day <- as.factor(data_test$day)
+data_test$H <- as.factor(data_test$H)
+```
+
+```{r}
+# 自定义数据读取，拆分函数
+# data:数据路径；target：目标变量；split：训练集和测试集的拆分比例
+generate_pool <- function(data,target,split){
+  setDF(data)
+  train_indices <- sample(1:nrow(data),split*nrow(data))
+  test_indices <- setdiff(1:nrow(data),train_indices)
+  features <- setdiff(colnames(data),target)
+  train_pool <- catboost.load_pool(data = data[train_indices,features], 
+                                 label = data[train_indices,target],
+                                 cat_features = c(0,1,2,10))
+  
+  test_pool <- catboost.load_pool(data=data[test_indices,features], 
+                                label = data[test_indices,target],
+                                cat_features = c(0,1,2,10))
+  return(list(train_pool,test_pool))
+  
+}
+```
+
+```{r}
+pool <- generate_pool(data = data_train,target = 'Power',split = 0.8)
+train_pool <- pool[[1]]
+test_pool <- pool[[2]]
+```
+
+```{r}
+fit_params_rmse <- list(iterations = 1000,
+                   thread_count = 10, #The number of threads to use during training.
+                   loss_function = 'RMSE', # MAE,MAPE,Poisson,Quantile,RMSE,LogLinQuantile,SMAPE
+                   # ignored_features = c(4,5),
+                   # use_best_model = TRUE,
+                   border_count = 128, # The number of splits for numerical features. Allowed values are integers from 1 to 255 inclusively.default 128
+                   depth = 8, #树的最大深度
+                   learning_rate = 0.1, #学习率
+                   l2_leaf_reg = 1, # l2正则化
+                   # class_weights = c(3,1,1,1,1,1), # 类别权重
+                   od_type = 'Iter',
+                   od_wait = 30,
+                   rsm = 0.9,
+                   # early_stopping_rounds = 10,
+                   custom_loss = c('RMSE'),
+                   random_seed = 123, 
+                   task_type='CPU', #R不支持GPU计算,python支持
+                   train_dir = '/shzx_data/stock/shzx/tmp/train_dir')
+
+model_catboost_fit_params_rmse <- catboost.train(learn_pool = train_pool, test_pool = test_pool, fit_params_rmse)
+```
+
+```{r}
+predict_pool <- catboost.load_pool(data = data_test, 
+                                 label = NULL,
+                                 cat_features = c(0,1,2,10))
+
+predict_catboost1 <- catboost.predict(model = model_catboost_fit_params_rmse, pool = predict_pool, prediction_type = c('RawFormulaVal'))
+fwrite(data.table('id' = 1:dim(predict_pool)[1],'predicition' = predict_catboost1),file = '/shzx_data/stock/shzx/tmp/result_catboost1.csv')
+# 0.18**4
+```
+
+```{r,eval = FALSE}
+跳转到jupyter.shzx.com 用shzx账户登陆
+import pandas as pd
+power  = pd.read_csv('/shzx_data/stock/shzx/tmp/result_catboost1.csv')
+power.to_csv('/home/shzx/power_predict_catboost.csv')
+```
+
+```{r}
+fit_params_Quantile <- list(iterations = 10000,
+                   thread_count = 10, #The number of threads to use during training.
+                   loss_function = 'Quantile', # MAE,MAPE,Poisson,Quantile,RMSE,LogLinQuantile,SMAPE
+                   # ignored_features = c(4,5),
+                   # use_best_model = TRUE,
+                   border_count = 128, # The number of splits for numerical features. Allowed values are integers from 1 to 255 inclusively.default 128
+                   depth = 10, #树的最大深度
+                   learning_rate = 0.1, #学习率
+                   l2_leaf_reg = 1, # l2正则化
+                   # class_weights = c(3,1,1,1,1,1), # 类别权重
+                   od_type = 'Iter',
+                   od_wait = 30,
+                   rsm = 0.9,
+                   # early_stopping_rounds = 10,
+                   custom_loss = c('RMSE'),
+                   random_seed = 123, 
+                   task_type='CPU', #R不支持GPU计算,python支持
+                   train_dir = '/shzx_data/stock/shzx/tmp/train_dir/Quantile')
+
+model_catboost_Quantile <- catboost.train(learn_pool = train_pool, test_pool = test_pool, fit_params_Quantile)
+predict_catboost_Quantile <- catboost.predict(model = model_catboost_Quantile, pool = predict_pool, prediction_type = c('RawFormulaVal'))
+fwrite(data.table('id' = 1:46634,'predicition' = predict_catboost_Quantile),file = '/shzx_data/stock/shzx/tmp/result_catboost_Quantile.csv')
+# 0.16***9
+
+fit_params_Poisson <- list(iterations = 10000,
+                   thread_count = 10, #The number of threads to use during training.
+                   loss_function = 'Poisson', # MAE,MAPE,Poisson,Quantile,RMSE,LogLinQuantile,SMAPE
+                   # ignored_features = c(4,5),
+                   # use_best_model = TRUE,
+                   border_count = 128, # The number of splits for numerical features. Allowed values are integers from 1 to 255 inclusively.default 128
+                   depth = 10, #树的最大深度
+                   learning_rate = 0.1, #学习率
+                   l2_leaf_reg = 1, # l2正则化
+                   # class_weights = c(3,1,1,1,1,1), # 类别权重
+                   od_type = 'Iter',
+                   od_wait = 30,
+                   rsm = 0.9,
+                   # early_stopping_rounds = 10,
+                   custom_loss = c('RMSE'),
+                   random_seed = 123, 
+                   task_type='CPU', #R不支持GPU计算,python支持
+                   train_dir = '/shzx_data/stock/shzx/tmp/train_dir/Poisson')
+
+model_catboost_Poisson <- catboost.train(learn_pool = train_pool, test_pool = test_pool, fit_params_Poisson)
+predict_catboost_Poisson <- catboost.predict(model = model_catboost_Poisson, pool = predict_pool, prediction_type = c('RawFormulaVal'))
+fwrite(data.table('id' = 1:46634,'predicition' = predict_catboost_Poisson),file = '/shzx_data/stock/shzx/tmp/result_catboost_Poisson.csv')
+# 0.36***1
+
+
+fit_params_LogLinQuantile <- list(iterations = 10000,
+                   thread_count = 10, #The number of threads to use during training.
+                   loss_function = 'LogLinQuantile', # MAE,MAPE,Poisson,Quantile,RMSE,LogLinQuantile,SMAPE
+                   # ignored_features = c(4,5),
+                   # use_best_model = TRUE,
+                   border_count = 128, # The number of splits for numerical features. Allowed values are integers from 1 to 255 inclusively.default 128
+                   depth = 10, #树的最大深度
+                   learning_rate = 0.1, #学习率
+                   l2_leaf_reg = 1, # l2正则化
+                   # class_weights = c(3,1,1,1,1,1), # 类别权重
+                   od_type = 'Iter',
+                   od_wait = 30,
+                   rsm = 0.9,
+                   # early_stopping_rounds = 10,
+                   custom_loss = c('RMSE'),
+                   random_seed = 123, 
+                   task_type='CPU', #R不支持GPU计算,python支持
+                   train_dir = '/shzx_data/stock/shzx/tmp/train_dir/LogLinQuantile')
+
+model_catboost_LogLinQuantile <- catboost.train(learn_pool = train_pool, test_pool = test_pool, fit_params_LogLinQuantile)
+predict_catboost_LogLinQuantile <- catboost.predict(model = model_catboost_LogLinQuantile, pool = predict_pool, prediction_type = c('RawFormulaVal'))
+fwrite(data.table('id' = 1:46634,'predicition' = predict_catboost_LogLinQuantile),file = '/shzx_data/stock/shzx/tmp/result_catboost_LogLinQuantile.csv')
+# 0.34**5
+
+####################################################### 无法运行 ################################################
+fit_params_MAPE <- list(iterations = 10000,
+                   thread_count = 10, #The number of threads to use during training.
+                   loss_function = 'MAPE', # MAE,MAPE,Poisson,Quantile,RMSE,LogLinQuantile,SMAPE
+                   # ignored_features = c(4,5),
+                   # use_best_model = TRUE,
+                   border_count = 128, # The number of splits for numerical features. Allowed values are integers from 1 to 255 inclusively.default 128
+                   depth = 10, #树的最大深度
+                   learning_rate = 0.1, #学习率
+                   l2_leaf_reg = 50, # l2正则化
+                   # class_weights = c(3,1,1,1,1,1), # 类别权重
+                   od_type = 'Iter',
+                   od_wait = 30,
+                   rsm = 0.9,
+                   # early_stopping_rounds = 10,
+                   custom_loss = c('RMSE'),
+                   random_seed = 123, 
+                   task_type='CPU', #R不支持GPU计算,python支持
+                   train_dir = '/shzx_data/stock/shzx/tmp/train_dir/MAPE')
+
+model_catboost_MAPE <- catboost.train(learn_pool = train_pool, test_pool = test_pool, fit_params_MAPE)
+# Training has stopped (degenerate solution on iteration 0, probably too small l2-regularization, try to increase it)
+predict_catboost_MAPE <- catboost.predict(model = model_catboost_MAPE, pool = predict_pool, prediction_type = c('RawFormulaVal'))
+fwrite(data.table('id' = 1:46634,'predicition' = predict_catboost_MAPE),file = '/shzx_data/stock/shzx/tmp/result_catboost_MAPE.csv')
+
+#####################################################################################################################
+
+
+fit_params_MAE <- list(iterations = 10000,
+                   thread_count = 10, #The number of threads to use during training.
+                   loss_function = 'MAE', # MAE,MAPE,Poisson,Quantile,RMSE,LogLinQuantile,SMAPE
+                   # ignored_features = c(4,5),
+                   # use_best_model = TRUE,
+                   border_count = 128, # The number of splits for numerical features. Allowed values are integers from 1 to 255 inclusively.default 128
+                   depth = 8, #树的最大深度
+                   learning_rate = 0.1, #学习率
+                   l2_leaf_reg = 1, # l2正则化
+                   # class_weights = c(3,1,1,1,1,1), # 类别权重
+                   od_type = 'Iter',
+                   od_wait = 30,
+                   rsm = 0.9,
+                   # early_stopping_rounds = 10,
+                   custom_loss = c('RMSE'),
+                   random_seed = 123, 
+                   task_type='CPU', #R不支持GPU计算,python支持
+                   train_dir = '/shzx_data/stock/shzx/tmp/train_dir/MAE')
+
+model_catboost_MAE <- catboost.train(learn_pool = train_pool, test_pool = test_pool, fit_params_MAE)
+predict_catboost_MAE <- catboost.predict(model = model_catboost_MAE, pool = predict_pool, prediction_type = c('RawFormulaVal'))
+fwrite(data.table('id' = 1:46634,'predicition' = predict_catboost_MAE),file = '/shzx_data/stock/shzx/tmp/result_catboost_MAE.csv')
+# 0.16***9
+```
+
+## lightgbm
+```{r}
+data_train <- train %>% as.data.table() %>% .[month %in% c('04','05','06','07','08','09','10'),.(month,day,H,irradiance,Speed,Direction,Temp,Pressure,humidity,Power,GRP)]
+
+# lgb.prepare:Attempts to prepare a clean dataset to prepare to put in a lgb.Dataset. Factors and characters are converted to numeric without integers. Please use lgb.prepare_rules if you want to apply this transformation to other datasets.
+data_train <- lgb.prepare(data = data_train)
+dtrain <- data_train[1:round(0.8*nrow(data_train)),]
+dtest <- data_train[round(0.8*nrow(data_train)):nrow(data_train),]
+
+
+
+dtrain <- lgb.Dataset(data = as.matrix(dtrain[,-'Power']), 
+                      label = dtrain[,'Power'])
+# categorical_feature = c(1,2,3,10)
+dtest <- lgb.Dataset(data = as.matrix(dtest[,-'Power']), 
+                     label = dtest[,'Power'])
+
+data_valid <- test %>% as.data.table() %>% .[,.(month,day,H,irradiance,Speed,Direction,Temp,Pressure,humidity,GRP)]
+data_valid <- lgb.prepare(data = data_valid)
+
+# Creating the LightGBM dataset with categorical features
+# The categorical features must be indexed like in R (1-indexed, not 0-indexed)
+
+# We can now train a model
+model <- lgb.train(params = list(objective = "tweedie",
+                         metric = "l2",
+                         min_data = 1,
+                         learning_rate = 0.01,
+                         min_hessian = 1,
+                         max_depth = 10,
+                         num_leaves = 60),
+                   verbose = 0,
+                   data = dtrain,
+                   nrounds = 2000,
+                   early_stopping_round = 30,
+                   valids = list(train = dtrain, test = dtest))
+```
+
+```{r}
+pred <- predict(model, as.matrix(data_valid))
+```
+
+# rwavelet 小波滤波
+```{r}
+train1 <- fread('train_1.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+train2 <- fread('train_2.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+train3 <- fread('train_3.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+train4 <- fread('train_4.csv',encoding = 'UTF-8',col.names = c('time','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power'))
+test1 <- fread('test_1.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+test2 <- fread('test_2.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+test3 <- fread('test_3.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+test4 <- fread('test_4.csv',encoding = 'UTF-8',col.names = c('id','time','irradiance','Speed','Direction','Temp','Pressure','humidity'))
+train_original <- rbindlist(l = list(train1,train2,train3,train4))
+test_original <- rbindlist(l = list(test1,test2,test3,test4))
+```
+
+```{r}
+# MakeONFilter(Type, Par)
+# Type:string, 'Haar', 'Beylkin', 'Coiflet', 'Daubechies' 'Symmlet', 'Vaidyanathan','Battle'.
+# Par:integer, it is a parameter related to the support and vanishing moments of the wavelets, explained below for each wavelet.
+Haar <- MakeONFilter('Haar', 10) 
+Beylkin <- MakeONFilter('Beylkin', 10) 
+Coiflet <- MakeONFilter('Coiflet', 1) 
+Daubechies <- MakeONFilter('Daubechies', 4) 
+Symmlet <- MakeONFilter('Symmlet', 4) 
+Vaidyanathan <- MakeONFilter('Vaidyanathan', 10) 
+Battle <- MakeONFilter('Battle', 1) 
+```
+
+```{r}
+
+# nrow(train1) 66859
+# log2(66859) 16.02883
+# 2^16 65536
+n <- nrow(train1)
+J <- 2^floor(log2(nrow(train1)))
+wc <- train1[(n-J+1):n,Temp]
+L <- 3
+# Forward Wavelet Transform (periodized, orthogonal)前向小波变换
+# IWT_PO Inverse Wavelet Transform (periodized, orthogonal).反向小波变换
+fest <- IWT_PO(wc, L, qmf) #L << J
+```
+
+```{r}
+# data:data.table
+# col:character vector,column to transfer
+# method: a MakeONFilter object
+wave_transform <- function(data,col_transfer,col_preserve,method){
+  n <- nrow(data)
+  J <- 2^floor(log2(nrow(data)))
+  data_transform <- data[(n-J+1):n,]
+  L <- 3
+  data_output <- data_transform[,lapply(.SD,IWT_PO,L = 3,qmf = method),.SDcols = col_transfer]
+  return(cbind(data_transform[,col_preserve,with =FALSE],data_output))
+}
+```
+
+```{r}
+cols_train <- c("irradiance","Speed","Direction","Temp","Pressure","humidity","real_irradiance")
+cols_preserve <- c('time','Power')
+cols_test <- c("irradiance","Speed","Direction","Temp","Pressure","humidity")
+
+train1_wavelet <- wave_transform(data = train1,col_transfer = cols_train,col_preserve = cols_preserve,method = Daubechies)
+train2_wavelet <- wave_transform(data = train2,col_transfer = cols_train,col_preserve = cols_preserve,method = Daubechies)
+train3_wavelet <- wave_transform(data = train3,col_transfer = cols_train,col_preserve = cols_preserve,method = Daubechies)
+train4_wavelet <- wave_transform(data = train4,col_transfer = cols_train,col_preserve = cols_preserve,method = Daubechies)
+
+fwrite(train1_wavelet,'D:/power/train1_wavelet.csv')
+fwrite(train2_wavelet,'D:/power/train2_wavelet.csv')
+fwrite(train3_wavelet,'D:/power/train3_wavelet.csv')
+fwrite(train4_wavelet,'D:/power/train4_wavelet.csv')
+```
+
+# xgboost
+### xgb1 
+利用除了year，S，real_irradiance 之外的特征建模;8:2,'reg:linear',
+```{r}
+train_numeric <- train[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+
+train_prob <- 0.8
+train_inds <- sample(x = train_numeric[,.N],size = train_numeric[,.N]*train_prob)
+test_inds <- setdiff(1:train_numeric[,.N],train_inds)
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_numeric[train_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[train_inds,'Power']))
+
+dtest <- xgb.DMatrix(data = as.matrix(train_numeric[test_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[test_inds,'Power']))
+
+watchlist <- list(train=dtrain, test=dtest)
+
+params = list(objective = "reg:linear",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred1.csv')
+# 0.19
+```
+### xgb2
+只筛选power>=0.03*ci的数据
+```{r}
+train_above_3percent <- train[(GRP=='1' & Power>=0.03*10)|(GRP=='2' & Power>=0.03*10)|(GRP=='3' & Power>=0.03*40)|(GRP=='4' & Power>=0.03*50)]
+train_numeric <- train_above_3percent[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+
+train_prob <- 0.8
+train_inds <- sample(x = train_numeric[,.N],size = train_numeric[,.N]*train_prob)
+test_inds <- setdiff(1:train_numeric[,.N],train_inds)
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_numeric[train_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[train_inds,'Power']))
+
+dtest <- xgb.DMatrix(data = as.matrix(train_numeric[test_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[test_inds,'Power']))
+
+watchlist <- list(train=dtrain, test=dtest)
+
+params = list(objective = "reg:linear",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred2.csv')
+
+# 0.19 预测结果和xgb1一样??
+```
+
+### xgb3
+在xgb2的基础上把objective调整为'reg:tweedie'
+```{r}
+params = list(objective = "reg:tweedie",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred3.csv')
+# 0.158028
+```
+### xgb4
+```{r}
+# 在xgb3的基础上把objective调整为'reg:gamma',效果不如reg:tweedie好
+params = list(objective = "reg:gamma",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred4.csv')
+# 0.15***7
+```
+### xgb5
+```{r}
+# 使用reg:tweedie
+train_prob <- 0.8
+threshold <- c(10,10,40,50)
+
+params = list(objective = "reg:tweedie",booster = 'gbtree', eta = 0.5, max_depth =10, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+result <- NULL
+
+for (i in 1:4){
+  train_numeric <- train[GRP==i & Power>=0.03*threshold[i],lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+  train_inds <- sample(x = train_numeric[,.N],size = train_numeric[,.N]*train_prob)
+  test_inds <- setdiff(1:train_numeric[,.N],train_inds)
+  dtrain <- xgb.DMatrix(data = as.matrix(train_numeric[train_inds,!c('year','S','real_irradiance','Power','GRP')]),label=as.matrix(train_numeric[train_inds,'Power']))
+  dtest <- xgb.DMatrix(data = as.matrix(train_numeric[test_inds,!c('year','S','real_irradiance','Power','GRP')]),label=as.matrix(train_numeric[test_inds,'Power']))
+  watchlist <- list(train=dtrain, test=dtest)
+  bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+  test_numeric <- test[GRP==i,lapply(.SD,FUN = as.numeric),.SDcols=c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+  pred <- predict(bst,as.matrix(test_numeric[,!c('year','S','GRP')]))
+  result <- rbind(result,data.table('predicition' = pred))
+  rm(list = c('bst','pred','train_numeric','test_numeric','dtrain','dtest','train_inds','test_inds'))
+
+}
+ 
+fwrite(data.table('id' = 1:46571,'predicition' = result$predicition),file = 'D:/power/pred/pred5.csv')
+# eta = 0.1,0.16***********************5
+# eta = 0.5;0.18*********************5!
+```
+### xgb6
+```{r}
+# 在xgb3的基础上把,tweedie_variance_power = 2
+train_above_3percent <- train[(GRP=='1' & Power>=0.03*10)|(GRP=='2' & Power>=0.03*10)|(GRP=='3' & Power>=0.03*40)|(GRP=='4' & Power>=0.03*50)]
+train_numeric <- train_above_3percent[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+
+train_prob <- 0.8
+train_inds <- sample(x = train_numeric[,.N],size = train_numeric[,.N]*train_prob)
+test_inds <- setdiff(1:train_numeric[,.N],train_inds)
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_numeric[train_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[train_inds,'Power']))
+
+dtest <- xgb.DMatrix(data = as.matrix(train_numeric[test_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[test_inds,'Power']))
+
+watchlist <- list(train=dtrain, test=dtest)
+
+params = list(objective = "reg:tweedie",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10,tweedie_variance_power = 2)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred6.csv')
+```
+### xgb7
+```{r}
+# 在xgb3的基础上只筛选4-10月数据训练测试
+train_above_3percent <- train[(GRP=='1' & Power>=0.03*10)|(GRP=='2' & Power>=0.03*10)|(GRP=='3' & Power>=0.03*40)|(GRP=='4' & Power>=0.03*50)][month %in% c("04","05","06","07","08","09","10")]
+train_numeric <- train_above_3percent[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+
+train_prob <- 0.8
+train_inds <- sample(x = train_numeric[,.N],size = train_numeric[,.N]*train_prob)
+test_inds <- setdiff(1:train_numeric[,.N],train_inds)
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_numeric[train_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[train_inds,'Power']))
+
+dtest <- xgb.DMatrix(data = as.matrix(train_numeric[test_inds,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[test_inds,'Power']))
+
+watchlist <- list(train=dtrain, test=dtest)
+
+params = list(objective = "reg:tweedie",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred7.csv')
+```
+###  xgb8
+```{r}
+train_above_3percent <- train[(GRP=='1' & Power>=0.03*10)|(GRP=='2' & Power>=0.03*10)|(GRP=='3' & Power>=0.03*40)|(GRP=='4' & Power>=0.03*50)]
+train_numeric <- train_above_3percent[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+
+train_prcomp <- prcomp(train_numeric, center = TRUE,scale = TRUE)
+train_prob <- 0.8
+train_inds <- sample(x = train_numeric[,.N],size = train_numeric[,.N]*train_prob)
+test_inds <- setdiff(1:train_numeric[,.N],train_inds)
+prcomp(USArrests, center = TRUE,scale = TRUE)
+
+params = list(objective = "reg:tweedie",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 5000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred3.csv')
+```
+### xgb9
+```{r}
+# xgb3的基础上进行修改,选取全部train_numeric作为训练集,2017年4-10月的数据作为验证集(因为最终的预测是在2018年4-10月上)
+train_above_3percent <- train[(GRP=='1' & Power>=0.03*10)|(GRP=='2' & Power>=0.03*10)|(GRP=='3' & Power>=0.03*40)|(GRP=='4' & Power>=0.03*50)]
+train_numeric <- train_above_3percent[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_numeric[,!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[,'Power']))
+
+dtest <- xgb.DMatrix(data = as.matrix(train_numeric[year == 2017 & month %in% c(4,5,6,7,8,9,10),!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[year == 2017 & month %in% c(4,5,6,7,8,9,10),'Power']))
+
+watchlist <- list(train=dtrain, test=dtest)
+
+params = list(objective = "reg:tweedie",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 10000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred9.csv')
+# eta = 0.1,nrounds = 5000,0.15*********************5
+# eta = 0.5,nrounds = 5000,0.18***6
+# eta = 0.1,nrounds = 10000,0.16*******************5
+```
+### xgb10
+```{r}
+# 
+train_above_3percent <- train[(GRP=='1' & Power>=0.03*10)|(GRP=='2' & Power>=0.03*10)|(GRP=='3' & Power>=0.03*40)|(GRP=='4' & Power>=0.03*50)]
+train_numeric <- train_above_3percent[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','real_irradiance','Power','GRP')]
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_numeric[year != 2017 | month %in% c(1,2,3,11,12),!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[year != 2017 | month %in% c(1,2,3,11,12),'Power']))
+
+dtest <- xgb.DMatrix(data = as.matrix(train_numeric[year == 2017 & month %in% c(4,5,6,7,8,9,10),!c('year','S','real_irradiance','Power')]), label=as.matrix(train_numeric[year == 2017 & month %in% c(4,5,6,7,8,9,10),'Power']))
+
+watchlist <- list(train=dtrain, test=dtest)
+params = list(objective = "reg:tweedie",booster = 'gbtree', eta = 0.1, max_depth =8, subsample = 0.8, colsample_bytree = 0.8,eval_metric = 'mae',early_stopping_rounds = 10)
+
+bst <- xgb.train(data=dtrain,params = params,nrounds = 10000, watchlist=watchlist)
+
+test_numeric <- test[,lapply(.SD,FUN = as.numeric),.SDcols = c('year','month','day','H','M','S','irradiance','Speed','Direction','Temp','Pressure','humidity','GRP')]
+pred <- predict(bst, as.matrix(test_numeric[,!c('year','S')]))
+fwrite(data.table('id' = 1:46571,'predicition' = pred),file = 'D:/power/pred/pred10.csv')
+# 0.15**********************5!
+```
+
+# prophet
+
+# keras
+
+```{r}
+
+```
+

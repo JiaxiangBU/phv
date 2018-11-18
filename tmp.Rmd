@@ -1,0 +1,39 @@
+```{r}
+library(DataExplorer)
+create_report(train_data_1)
+```
+
+直接用成绩pca一下。
+
+```{r}
+library(here)
+here('data') %>% 
+    list.files('jiaxiang_prediction_xgboostbaseline_tweedie.csv') %>% 
+    as_tibble() %>% 
+    mutate(data = map(value,~fread(here('data',.)))) %>% 
+    unnest() %>% 
+    # filter(id == 6.5)
+    spread(value,predicition) %>% 
+    arrange(id) %>% 
+    select(-id) %>% 
+    prcomp_irlba(
+        x = .
+        ,n = 1
+        ,center = F
+        ,scale. = F
+    ) %>% 
+    predict() %>% 
+    as_tibble() %>% 
+    bind_cols(
+        test_data_1 %>% 
+        select(id)
+    ) %>% 
+    transmute(id,predicition=PC1) %>% 
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_prediction_xgboostbaseline_tweedie.csv',sep='_')
+        )
+    )
+```
+
