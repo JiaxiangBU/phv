@@ -4,6 +4,7 @@ create_report(train_data_1)
 ```
 
 直接用成绩pca一下。
+不行!
 
 ```{r}
 library(here)

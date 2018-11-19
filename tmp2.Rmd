@@ -1,0 +1,80 @@
+## add prophet
+
+```{r}
+library(prophet)
+library(tidyverse)
+library(lubridate)
+train_data_prophet <- 
+    train_data_1 %>% 
+        drop_data_underc %>% 
+        select(short_name,t,p) %>%
+        rename(ds = t,y = p) %>% 
+        arrange(ds) %>% 
+        # Error in mutate_impl(.data, dots) : 
+        # Evaluation error: Dataframe must have columns 'ds' and 'y' 
+        # with the dates and values respectively..
+        group_by(short_name) %>% 
+        nest()
+# train_data_1 %>% 
+#     group_by(short_name) %>% 
+#     summarise(min(t),max(t))
+# test_data_1 %>% 
+#     group_by(short_name) %>% 
+#     summarise(min(t),max(t))
+# 时间衔接
+
+prophet_pred_data <- 
+train_data_prophet %>% 
+    left_join(
+        test_data_1 %>%
+        group_by(short_name) %>%
+        summarise(periods = n())
+        ,by='short_name'
+    ) %>% 
+    mutate(mod = map(data,~prophet(.,daily.seasonality=TRUE))) %>% 
+    mutate(pred = map2(.x = mod,.y = periods+100,.f = 
+                           ~make_future_dataframe(.x, periods = .y) %>% 
+                           predict(.x, .) %>% 
+                           select(ds,yhat)
+                       )) %>% 
+    # train and test yhat produced by make_future_dataframe
+    select(short_name,pred)
+
+```
+ 
+```{r}
+    arrange()
+test_data_1 %>% 
+    select(short_name,id,t) %>% 
+    summarise()
+bind_data_prophet <- 
+    bind_rows(
+        train_data_1 %>% 
+            drop_data_underc %>% 
+            select(var_is_numeric)
+        ,test_data_1 %>% 
+            select(var_is_numeric)
+    ) %>% 
+    mutate_all(~.+50)
+prophet_start_time <- now()
+prophet_model <- 
+    prophet(
+        x = bind_data_prophet
+        ,rank = 1
+    )
+prophet_end_time <- now()
+prophet_end_time-prophet_start_time
+# 3s 训练完
+train_length <- train_data_1 %>% drop_data_underc %>% nrow()
+train_prophet <- 
+    prophet_model@fit@W %>% 
+    .[1:train_length]
+test_prophet <- 
+    prophet_model@fit@W %>% 
+    .[(train_length+1):length(.)]
+```
+
+```{r}
+length(train_prophet)
+length(test_prophet);nrow(test_data_1)
+```
