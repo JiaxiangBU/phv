@@ -831,6 +831,138 @@ length(train_nmf)
 length(test_nmf);nrow(test_data_1)
 ```
 
+## add prophet
+
+```{r eval=F}
+library(prophet)
+library(tidyverse)
+library(lubridate)
+    
+train_data_1_dateid <- 
+    train_data_1 %>% 
+    drop_data_underc %>%
+    # rename(ds = t,y = p) %>% 
+    # 重塑date_id
+    rename(y = p) %>% 
+    mutate(ds = as.Date('2018-01-01')+ddays(1*row_number()))
+
+train_data_prophet <- 
+    train_data_1_dateid %>% 
+    select(short_name,ds,y) %>%
+    arrange(ds) %>%
+    # Error in mutate_impl(.data, dots) : 
+    # Evaluation error: Dataframe must have columns 'ds' and 'y' 
+    # with the dates and values respectively..
+    group_by(short_name)
+# train_data_1 %>% 
+#     group_by(short_name) %>% 
+#     summarise(min(t),max(t))
+# test_data_1 %>% 
+#     group_by(short_name) %>% 
+#     summarise(min(t),max(t))
+# 时间衔接
+
+train_data_prophet_n <- 
+    train_data_prophet %>% 
+    count
+test_data_1_n <- 
+    test_data_1 %>% 
+    group_by(short_name) %>% 
+    count
+
+prophet_pred_data <- 
+    train_data_prophet %>% 
+    nest() %>% 
+    left_join(
+        train_data_prophet_n %>% 
+            rename(train_n = n)
+        ,by='short_name'
+    ) %>% 
+    left_join(
+        test_data_1_n
+        ,by='short_name'
+    ) %>% 
+    mutate(mod = map(data,~prophet(.,daily.seasonality=TRUE))) %>% 
+    mutate(pred = map2(.x = mod,.y = n,.f = 
+                           ~make_future_dataframe(.x, periods = .y) %>% 
+                           predict(.x, .) %>% 
+                           select(ds,yhat)
+                       ))
+    # train and test yhat produced by make_future_dataframe
+```
+
+用windows 跑了很长时间才跑完。
+
+```{r eval=F}
+prophet_pred_data %>% 
+    mutate(train_data = map2(.x = train_n,.y = pred,.f = ~.y %>% head(.x))) %>% 
+    # mutate(test_data = map2(.x = n,.y = pred,.f = ~.y %>% tail(.x)))
+    select(short_name,data,train_data) %>% 
+    unnest() %>% 
+    select(short_name,ds,yhat) %>% 
+    right_join(
+        train_data_1_dateid %>% 
+            select(short_name,ds,t)
+        ,by = c('short_name','ds')
+    ) %>% 
+    select(-ds) %>% 
+    # anyNA() %>% 
+    # 准确无误
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_feature_prophet_train.csv',sep='_')
+        )
+    )    
+```
+
+```{r eval=F}
+prophet_pred_data %>% 
+    mutate(test_data = map2(.x = n,.y = pred,.f = ~.y %>% tail(.x))) %>% 
+    select(short_name,test_data) %>% 
+    unnest() %>% 
+    arrange(short_name,ds) %>% 
+    select(short_name,yhat) %>% 
+    bind_cols(
+        test_data_1 %>% 
+            select(short_name,t) %>% 
+            arrange(short_name,t)
+    ) %>% 
+    select(-short_name1) %>% 
+    # anyNA() %>%
+    # 准确无误
+    write_excel_csv(
+        file.path(
+            'data'
+            ,paste(today() %>% str_remove_all('-') %>% str_sub(3,-1),'jiaxiang_feature_prophet_test.csv',sep='_')
+        )
+    )    
+```
+
+```{r}
+train_prophet <- 
+    fread(file.path(
+        'data'
+        ,list.files('data') %>% str_subset('jiaxiang_feature_prophet.csv') %>% max
+    )
+    ,encoding = 'UTF-8'
+    )
+test_prophet <- 
+    fread(file.path(
+        'data'
+        ,list.files('data') %>% str_subset('jiaxiang_feature_prophet_test.csv') %>% max
+    )
+    ,encoding = 'UTF-8'
+    )
+```
+
+需要重塑date_id，bug见
+[Github Issue](https://github.com/facebook/prophet/issues/744)
+
+```{r}
+fread('prophet_date_id_bug.csv')
+```
+
 # Model
 
 ## baseline xgboost tweedie
