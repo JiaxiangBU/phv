@@ -12,3 +12,4 @@ model_name,socre,metrics,pc,note
 181112_xgb_base05.model,0.24***9,0.1158237,mac,add tsi_real fitted，最好不要加入。
 181112_xgb_base05.model,0.15***3,0.1149667,mac,add pca 1-2 不好，感觉是没有泛化
 181113_xgb_base05.model,0.15***3,0.1149667,mac,add nmf，排名没变，无效
+181119_xgb_base05.model,0.49***5,0.1155158,mac,add prophet，prophet 增加，但是结果过拟合
