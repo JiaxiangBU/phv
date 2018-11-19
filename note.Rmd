@@ -943,7 +943,7 @@ prophet_pred_data %>%
 train_prophet <- 
     fread(file.path(
         'data'
-        ,list.files('data') %>% str_subset('jiaxiang_feature_prophet.csv') %>% max
+        ,list.files('data') %>% str_subset('jiaxiang_feature_prophet_train.csv') %>% max
     )
     ,encoding = 'UTF-8'
     )
