@@ -1,5 +1,15 @@
+光伏短期功率预测大赛
+================
+李家翔，…,靳晓松,…
+2018-11-28
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
+
+1.  比赛: 光伏短期功率预测大赛
+2.  需求: 短期光伏功率预测
+3.  项目名称的由来，PHotoVoltaic (phv)
+4.  国能日新光伏功率预测大赛
+    [**官方网址**](http://www.dcjingsai.com/common/cmpt/%E5%9B%BD%E8%83%BD%E6%97%A5%E6%96%B0%E5%85%89%E4%BC%8F%E5%8A%9F%E7%8E%87%E9%A2%84%E6%B5%8B%E5%A4%A7%E8%B5%9B_%E7%AB%9E%E8%B5%9B%E4%BF%A1%E6%81%AF.html)
 
 此次比赛我们的名字最后排在**52**名。
 
@@ -11,6 +21,10 @@
 
 1.  神经网络模型，具体见Python代码`wushen.ipynb`。
 2.  Xgboost的融合，具体见R代码`note.Rmd`
+
+### EDA
+
+使用`trelliscope`，交互方便，但是不适合上线部署，不便于交流。
 
 ### 特征工程
 
@@ -30,7 +44,11 @@
 
 高亮为测试后效果好的变量。
 
-一系列的特征工程我们在Xgboost进行了融合，
+一系列的特征工程我们在Xgboost进行了融合。
+
+### 神经网络的主要思路
+
+…
 
 ### 不足
 

@@ -1,4 +1,8 @@
 ---
+title: "光伏短期功率预测大赛"
+subtitle: "项目结稿"
+author: "李家翔，...,靳晓松,..."
+date: "`r Sys.Date()`"
 output: github_document
 ---
 
@@ -12,6 +16,11 @@ knitr::opts_chunk$set(
 )
 ```
 
+1. 比赛: 光伏短期功率预测大赛
+1. 需求: 短期光伏功率预测
+1. 项目名称的由来，PHotoVoltaic (phv)
+1. 国能日新光伏功率预测大赛 [**官方网址**](http://www.dcjingsai.com/common/cmpt/%E5%9B%BD%E8%83%BD%E6%97%A5%E6%96%B0%E5%85%89%E4%BC%8F%E5%8A%9F%E7%8E%87%E9%A2%84%E6%B5%8B%E5%A4%A7%E8%B5%9B_%E7%AB%9E%E8%B5%9B%E4%BF%A1%E6%81%AF.html)
+
 此次比赛我们的名字最后排在**52**名。
 
 ```{r}
@@ -22,7 +31,7 @@ knitr::include_graphics('pic/rank.png')
 
 我们主要的实现方式是
 
-1. 神经网络模型，具体见Python代码`wushen.ipynb`。
+1. 神经网络模型，具体见Python代码`wushen.ipynb`。**最后成绩是神经网络模型的结果**。
 1. Xgboost的融合，具体见R代码`note.Rmd`
 
 ### EDA
