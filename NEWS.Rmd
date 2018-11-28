@@ -1,0 +1,20 @@
+---
+output: github_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+### 2018-11-28 11:20:34
+
+1. 更新`README`的介绍
+
+### 2018-11-28 11:02:27
+
+1. prophet 增加，但是结果过拟合，因此不好。
+1. 目前最高分的结果，我重新传一次后，发现评分变了，因此感觉测试集改变了。
+1. 加入`README.Rmd`
