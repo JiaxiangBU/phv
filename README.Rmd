@@ -1,7 +1,7 @@
 ---
 title: "光伏短期功率预测大赛"
 subtitle: "项目结稿"
-author: "李家翔，...,靳晓松,..."
+author: "李家翔,武睿琦,靳晓松,..."
 date: "`r Sys.Date()`"
 output: github_document
 ---

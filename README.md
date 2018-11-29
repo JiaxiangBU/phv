@@ -1,7 +1,7 @@
 光伏短期功率预测大赛
 ================
-李家翔，…,靳晓松,…
-2018-11-28
+李家翔,武睿琦,靳晓松,…
+2018-11-29
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -19,7 +19,7 @@
 
 我们主要的实现方式是
 
-1.  神经网络模型，具体见Python代码`wushen.ipynb`。
+1.  神经网络模型，具体见Python代码`wushen.ipynb`。**最后成绩是神经网络模型的结果**。
 2.  Xgboost的融合，具体见R代码`note.Rmd`
 
 ### EDA
