@@ -1,9 +1,11 @@
 光伏短期功率预测大赛
 ================
 李家翔,武睿琦,靳晓松,…
-2018-11-29
+2019-01-09
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
+
+更新记录见 [NEWS](NEWS.md)
 
 1.  比赛: 光伏短期功率预测大赛
 2.  需求: 短期光伏功率预测
