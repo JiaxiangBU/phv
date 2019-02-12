@@ -1,7 +1,7 @@
 光伏短期功率预测大赛
 ================
 李家翔,武睿琦,靳晓松,…
-2018-11-29
+2019-02-12
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -57,3 +57,6 @@
 **这是我们下一次比赛需要注意的问题**。
 
 其次，我们一开始没有很好的做EDA，观察被解释变量关于时间的波动，查看异常值。
+
+在特征工程的部分，非线性关系的拟合，没有使用更高效的 Ramsey’s RESET
+test，详见[github](https://github.com/JiaxiangBU/learn_fe)
