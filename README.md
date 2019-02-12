@@ -5,6 +5,8 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
+更新记录见 [NEWS](NEWS.md)
+
 1.  比赛: 光伏短期功率预测大赛
 2.  需求: 短期光伏功率预测
 3.  项目名称的由来，PHotoVoltaic (phv)
