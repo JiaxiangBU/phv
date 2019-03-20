@@ -74,3 +74,7 @@ knitr::include_graphics('pic/rank.png')
 其次，我们一开始没有很好的做EDA，观察被解释变量关于时间的波动，查看异常值。
 
 在特征工程的部分，非线性关系的拟合，没有使用更高效的 Ramsey’s RESET test，详见[github](https://github.com/JiaxiangBU/learn_fe)
+
+另外参考
+[预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about)
+的问题。
