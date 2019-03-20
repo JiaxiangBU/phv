@@ -1,7 +1,7 @@
 光伏短期功率预测大赛
 ================
 李家翔,武睿琦,靳晓松,…
-2019-02-12
+2019-03-20
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -62,3 +62,5 @@
 
 在特征工程的部分，非线性关系的拟合，没有使用更高效的 Ramsey’s RESET
 test，详见[github](https://github.com/JiaxiangBU/learn_fe)
+
+另外参考 [预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about) 的问题。
