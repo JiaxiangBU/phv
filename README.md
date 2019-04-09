@@ -1,7 +1,7 @@
 光伏短期功率预测大赛
 ================
 李家翔,武睿琦,靳晓松,…
-2019-03-20
+2019-04-09
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -54,13 +54,11 @@
 
 ### 不足
 
-我们没有将神经网络和XGboost进行融合，因为没有保存训练集的预测值。
-主办方在比赛过程中修改了数据集和评价函数，导致我们无法复现原来的历史预测。
-**这是我们下一次比赛需要注意的问题**。
-
-其次，我们一开始没有很好的做EDA，观察被解释变量关于时间的波动，查看异常值。
-
-在特征工程的部分，非线性关系的拟合，没有使用更高效的 Ramsey’s RESET
-test，详见[github](https://github.com/JiaxiangBU/learn_fe)
-
-另外参考 [预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about) 的问题。
+1.  我们没有将神经网络和XGboost进行融合，因为没有保存训练集的预测值。
+    主办方在比赛过程中修改了数据集和评价函数，导致我们无法复现原来的历史预测。
+    **这是我们下一次比赛需要注意的问题**。
+2.  其次，我们一开始没有很好的做EDA，观察被解释变量关于时间的波动，查看异常值。
+3.  在特征工程的部分，非线性关系的拟合，没有使用更高效的 Ramsey’s RESET
+    test，详见[Github](https://github.com/JiaxiangBU/learn_fe)
+4.  另外参考 [预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about)
+    的问题，有可能存在 [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况。
