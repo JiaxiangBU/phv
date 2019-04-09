@@ -1,6 +1,6 @@
 光伏短期功率预测大赛
 ================
-李家翔,武睿琦,靳晓松,…
+李家翔,武睿琦,靳晓松
 2019-04-09
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -62,3 +62,31 @@
     test，详见[Github](https://github.com/JiaxiangBU/learn_fe)
 4.  另外参考 [预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about)
     的问题，有可能存在 [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况。
+
+-----
+
+<h4 align="center">
+
+**Code of Conduct**
+
+</h4>
+
+<h6 align="center">
+
+Please note that the ‘phv’ project is released with a [Contributor Code
+of Conduct](CODE_OF_CONDUCT.md). By contributing to this project, you
+agree to abide by its terms.
+
+</h6>
+
+<h4 align="center">
+
+**License**
+
+</h4>
+
+<h6 align="center">
+
+MIT © [Jiaxiang Li;Ruiqi Wu;Xiaosong Jin](LICENSE.md)
+
+</h6>

@@ -1,7 +1,7 @@
 ---
 title: "光伏短期功率预测大赛"
 subtitle: "项目结稿"
-author: "李家翔,武睿琦,靳晓松,..."
+author: "李家翔,武睿琦,靳晓松"
 date: "`r Sys.Date()`"
 output: github_document
 ---
@@ -76,3 +76,15 @@ knitr::include_graphics('pic/rank.png')
     [预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about)
     的问题，有可能存在
     [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况。
+
+***
+
+<h4 align="center">**Code of Conduct**</h4>
+
+<h6 align="center">Please note that the 'phv' project is released with a
+[Contributor Code of Conduct](CODE_OF_CONDUCT.md).
+By contributing to this project, you agree to abide by its terms.</h6>
+
+<h4 align="center">**License**</h4>
+
+<h6 align="center">MIT &copy; [Jiaxiang Li;Ruiqi Wu;Xiaosong Jin](LICENSE.md)</h6>
