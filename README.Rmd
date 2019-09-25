@@ -75,7 +75,9 @@ knitr::include_graphics('pic/rank.png')
 1. 另外参考
     [预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about)
     的问题，有可能存在
-    [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况。
+    [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况，目前处理的方式见
+    [模型校正部分](https://jiaxiangbu.github.io/train_model/learning_notes.html)
+    。
 
 ***
 
