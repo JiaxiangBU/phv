@@ -1,3 +1,5 @@
+# 数据报告 testing
+
 ```{r}
 library(DataExplorer)
 create_report(train_data_1)
@@ -6,7 +8,7 @@ create_report(train_data_1)
 直接用成绩pca一下。
 不行!
 
-stacking
+# stacking testing
 
 ```{r}
 library(here)
