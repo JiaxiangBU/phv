@@ -1,7 +1,7 @@
 光伏短期功率预测大赛
 ================
 李家翔,武睿琦,靳晓松
-2019-09-25
+2020-03-16
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -15,7 +15,7 @@
 
 此次比赛我们的名字最后排在**52**名。
 
-![](pic/rank.png)<!-- -->
+<img src="pic/rank.png" width="1460" />
 
 ### 实现方式
 
@@ -65,6 +65,8 @@
     [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况，目前处理的方式见
     [模型校正部分](https://jiaxiangbu.github.io/train_model/learning_notes.html)
     。
+5.  这里有四个光伏板，并且都是时间序列，所以算 longitudinal data，这里可以采用 LSTM 进行训练，参考 [6
+    神经网络应用](https://jiaxiangbu.github.io/learn_longitudinal_analysis/analysis/introduction-panel-data.html)
 
 -----
 

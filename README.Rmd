@@ -78,6 +78,8 @@ knitr::include_graphics('pic/rank.png')
     [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况，目前处理的方式见
     [模型校正部分](https://jiaxiangbu.github.io/train_model/learning_notes.html)
     。
+1. 这里有四个光伏板，并且都是时间序列，所以算 longitudinal data，这里可以采用 LSTM 进行训练，参考
+[6 神经网络应用](https://jiaxiangbu.github.io/learn_longitudinal_analysis/analysis/introduction-panel-data.html)
 
 ***
 
