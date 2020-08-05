@@ -41,6 +41,14 @@ knitr::include_graphics('pic/rank.png')
 
 使用`trelliscope`，交互方便，但是不适合上线部署，不便于交流。
 
+```{r echo=FALSE, results='asis'}
+index_path <- fs::dir_ls(recurse = TRUE, regexp = "index.html")
+index_name <- dirname(index_path)
+index_path <- file.path("https://jiaxiangbu.github.io/phv/",index_path)
+glue::glue("1. [{index_name}]({index_path})")
+```
+
+
 ### 特征工程
 
 我们尝试的特征工程是

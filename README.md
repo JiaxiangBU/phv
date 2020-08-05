@@ -1,7 +1,7 @@
 光伏短期功率预测大赛
 ================
 李家翔,武睿琦,靳晓松
-2020-03-16
+2020-08-05
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -27,6 +27,10 @@
 ### EDA
 
 使用`trelliscope`，交互方便，但是不适合上线部署，不便于交流。
+
+1.  [trelliscope/p](https://jiaxiangbu.github.io/phv//trelliscope/p/index.html)
+2.  [trelliscope/tsi](https://jiaxiangbu.github.io/phv//trelliscope/tsi/index.html)
+3.  [trelliscope/tsi\_real](https://jiaxiangbu.github.io/phv//trelliscope/tsi_real/index.html)
 
 ### 特征工程
 
