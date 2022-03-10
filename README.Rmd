@@ -4,6 +4,7 @@ subtitle: "项目结稿"
 author: "李家翔,武睿琦,靳晓松"
 date: "`r Sys.Date()`"
 output: github_document
+bibliography: [../imp_rmd/refs/add.bib]
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
