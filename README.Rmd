@@ -70,9 +70,6 @@ glue::glue("1. [{index_name}]({index_path})")
 
 一系列的特征工程我们在Xgboost进行了融合。
 
-### 神经网络的主要思路
-
-...
 
 ### 不足
 
