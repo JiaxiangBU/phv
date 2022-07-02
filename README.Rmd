@@ -72,6 +72,10 @@ glue::glue("1. [{index_name}]({index_path})")
 
 ### 后续可以做的空间
 
+#### 深度学习的方法
+
+1. 采用空洞卷积的方法[@oord2016wavenet;@oord2016conditional;@sprangers2022parameter;@kechyn2018sales]，一些其他的应用如音频的频谱、长时间序列。
+
 #### XGBoost
 
 1. 我们没有将神经网络和XGboost进行融合，因为没有保存训练集的预测值。

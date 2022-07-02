@@ -1,7 +1,7 @@
 光伏短期功率预测大赛
 ================
 李家翔,武睿琦,靳晓松
-2022-03-10
+2022-07-02
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -53,6 +53,12 @@
 一系列的特征工程我们在Xgboost进行了融合。
 
 ### 后续可以做的空间
+
+#### 深度学习的方法
+
+1.  采用空洞卷积的方法(A. van den Oord et al. 2016a; A. van den Oord et
+    al. 2016b; Sprangers, Schelter, and Rijke 2022; Kechyn et al.
+    2018)，一些其他的应用如音频的频谱、长时间序列。
 
 #### XGBoost
 
@@ -124,11 +130,44 @@ Applications of Artificial Intelligence* 39: 235–44.
 
 </div>
 
+<div id="ref-kechyn2018sales" class="csl-entry">
+
+Kechyn, Glib, Lucius Yu, Yangguang Zang, and Svyatoslav Kechyn. 2018.
+“Sales Forecasting Using WaveNet Within the Framework of the Kaggle
+Competition.” *arXiv: Learning*.
+
+</div>
+
+<div id="ref-oord2016wavenet" class="csl-entry">
+
+Oord, Aaron van den, Sander Dieleman, Heiga Zen, Karen Simonyan, Oriol
+Vinyals, Alex Graves, Nal Kalchbrenner, Andrew Senior, and Koray
+Kavukcuoglu. 2016a. “Wavenet: A Generative Model for Raw Audio.” *arXiv
+Preprint arXiv:1609.03499*.
+
+</div>
+
+<div id="ref-oord2016conditional" class="csl-entry">
+
+Oord, Aaron van den, Nal Kalchbrenner, Oriol Vinyals, Lasse Espeholt,
+Alex Graves, and Koray Kavukcuoglu. 2016b. “Conditional Image Generation
+with PixelCNN Decoders.” *Neural Information Processing Systems*.
+
+</div>
+
 <div id="ref-salvador2007toward" class="csl-entry">
 
 Salvador, Stan, and Philip Chan. 2007. “Toward Accurate Dynamic Time
 Warping in Linear Time and Space.” *Intelligent Data Analysis* 11 (5):
 561–80.
+
+</div>
+
+<div id="ref-sprangers2022parameter" class="csl-entry">
+
+Sprangers, Olivier, Sebastian Schelter, and Maarten de Rijke. 2022.
+“Parameter-Efficient Deep Probabilistic Forecasting.” *International
+Journal of Forecasting*.
 
 </div>
 
