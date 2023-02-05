@@ -59,32 +59,21 @@ glue::glue("1. [{index_name}]({index_path})")
 
 ## 深度学习的方法
 
-1. 采用空洞卷积的方法[@oord2016wavenet;@oord2016conditional;@sprangers2022parameter;@kechyn2018sales]，一些其他的应用如音频的频谱、长时间序列。
+1. 可以采用空洞卷积的方法[@oord2016wavenet;@oord2016conditional;@sprangers2022parameter;@kechyn2018sales]，这种方法可以用于一些其他的应用，比如音频的频谱、长时间序列等。
 
 ## XGBoost
 
-1. 我们没有将神经网络和XGboost进行融合，因为没有保存训练集的预测值。
-主办方在比赛过程中修改了数据集和评价函数，导致我们无法复现原来的历史预测。
-**这是我们下一次比赛需要注意的问题**。
-1. 采用更加合理的窗口特征提取方式[@elsayed2021we]
-1. 预测y的目标是四个，可以考虑多任务的框架，如 MT-GBT[@ying2022mt]
+1. 由于比赛过程中主办方修改了数据集和评价函数，我们无法复现原来的历史预测，因此，我们没有将神经网络和XGboost进行融合，这也是我们下一次比赛需要注意的问题。
+1. 我们可以采用更加合理的窗口特征提取方式[@elsayed2021we]，以及考虑多任务的框架，如MT-GBT[@ying2022mt]，来提高模型的性能。
 
 ## EDA和特征工程
 
-1. 其次，我们一开始没有很好的做EDA，观察被解释变量关于时间的波动，查看异常值。
-1. 在特征工程的部分，非线性关系的拟合，没有使用更高效的 Ramsey’s RESET test，详见[Github](https://github.com/JiaxiangBU/learn_fe)
-1. 另外参考
-    [预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about)
-    的问题，有可能存在
-    [欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况，目前处理的方式见
-    [模型校正部分](https://jiaxiangbu.github.io/train_model/learning_notes.html)
-    。
-1. 这里有四个光伏板，并且都是时间序列，所以算 longitudinal data，这里可以采用 LSTM 进行训练，参考
-[6 神经网络应用](https://jiaxiangbu.github.io/learn_longitudinal_analysis/analysis/introduction-panel-data.html)
-1. 既然考虑了 PCA 作为聚类特征，那么应该考虑 DTW[@salvador2007toward;@izakian2015fuzzy] 和 TS-PCA[@chang2018principal]
-1. 既然考虑了 prophet，应该使用prophet的NNs训练[@triebe2021neuralprophet]
-
-
+1. 我们需要做好EDA，观察被解释变量关于时间的波动，查看异常值。
+1. 在特征工程的部分，为了拟合非线性关系，我们可以使用更高效的Ramsey’s RESET test，详见[Github](https://github.com/JiaxiangBU/learn_fe)。
+1. 我们也可以参考[预测值迁移](https://jiaxiangbu.github.io/channel_valuation/about)的问题，发现模型可能存在[欠拟合](https://jiaxiangbu.github.io/learn_fe/)的情况，并采取[模型校正部分](https://jiaxiangbu.github.io/train_model/learning_notes.html)的方法来解决。
+1. 因为有四个光伏板，并且都是时间序列，所以这里可以采用LSTM训练，参考[6神经网络应用](https://jiaxiangbu.github.io/learn_longitudinal_analysis/analysis/introduction-panel-data.html)。
+1. 既然考虑了PCA作为聚类特征，那么应该考虑DTW[@salvador2007toward;@izakian2015fuzzy]和TS-PCA[@chang2018principal]。
+1. 既然考虑了prophet，那么应该使用prophet的NNs训练[@triebe2021neuralprophet]。
 
 ***
 
