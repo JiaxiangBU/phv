@@ -17,28 +17,34 @@ knitr::opts_chunk$set(
 )
 ```
 
+# 模型融合
 
-更新记录见 [NEWS](NEWS.md)
+我们尝试的模型融合有
 
-1. 比赛: 光伏短期功率预测大赛
-1. 需求: 短期光伏功率预测
-1. 项目名称的由来，PHotoVoltaic (phv)
-1. 国能日新光伏功率预测大赛 [**官方网址**](http://www.dcjingsai.com/common/cmpt/%E5%9B%BD%E8%83%BD%E6%97%A5%E6%96%B0%E5%85%89%E4%BC%8F%E5%8A%9F%E7%8E%87%E9%A2%84%E6%B5%8B%E5%A4%A7%E8%B5%9B_%E7%AB%9E%E8%B5%9B%E4%BF%A1%E6%81%AF.html)
+1. 神经网络模型
+1. Xgboost模型
+1. **时间序列模型**
+1. **基于概率模型的融合**
 
-此次比赛我们的名字最后排在**52**名。
+# 结论
+
+本次比赛，我们主要的实现方式是神经网络模型，最终的排名是**52**名。我们的特征工程涵盖了时间相关变量、平方项、立方项、比率、滚动SMA、滚动方差、PCA主成分、实发辐射的测试集预测值、NMF衍生变量、prophet等，而模型融合则涵盖了神经网络模型、Xgboost模型、时间序列模型以及基于概率模型的融合。
+
+# 光伏短期功率预测大赛
+
+这个项目是参加国能日新的[光伏短期功率预测大赛](http://www.dcjingsai.com/common/cmpt/%E5%9B%BD%E8%83%BD%E6%97%A5%E6%96%B0%E5%85%89%E4%BC%8F%E5%8A%9F%E7%8E%87%E9%A2%84%E6%B5%8B%E5%A4%A7%E8%B5%9B_%E7%AB%9E%E8%B5%9B%E4%BF%A1%E6%81%AF.html)的结稿。我们的团队名为 `PHotoVoltaic (phv)`，最终排名是**52**名。
+
+在这个比赛中，我们尝试了一系列的特征工程和模型融合，以提高模型的性能。在特征工程方面，我们加入了时间相关变量、平方项、立方项、比率、滚动SMA、滚动方差、PCA主成分、实发辐射的测试集预测值、NMF衍生变量、prophet等；在模型融合方面，我们尝试了神经网络模型、Xgboost模型、时间序列模型以及基于概率模型的融合。
+
+我们的实现方式主要是神经网络模型，具体见Python代码`wushen.ipynb`，而Xgboost的融合则见R代码`note.Rmd`。我们也使用了`trelliscope`来进行EDA，交互方便，但是不适合上线部署，不便于交流。
+
+最终，我们的模型达到了较好的效果，跑出了**52**名的排名。
 
 ```{r}
 knitr::include_graphics('pic/rank.png')
 ```
 
-### 实现方式
-
-我们主要的实现方式是
-
-1. 神经网络模型，具体见Python代码`wushen.ipynb`。**最后成绩是神经网络模型的结果**。
-1. Xgboost的融合，具体见R代码`note.Rmd`
-
-### EDA
+# EDA
 
 使用`trelliscope`，交互方便，但是不适合上线部署，不便于交流。
 
@@ -49,34 +55,13 @@ index_path <- file.path("https://jiaxiangbu.github.io/phv/",index_path)
 glue::glue("1. [{index_name}]({index_path})")
 ```
 
+# 后续可以做的空间
 
-### 特征工程
-
-我们尝试的特征工程是
-
-1. 加入滞后项
-1. **加入时间相关变量，见R包`timetk::tk_augment_timeseries_signature`函数**
-1. **加入平方项、立方项，拟合非线性关系**
-1. 加入交互项
-1. 加入比率
-1. 加入滚动SMA
-1. 加入滚动方差
-1. **加入PCA的主成分**
-1. 加入实发辐射的测试集预测值
-1. 加入NMF的衍生变量
-1. 加入 [prophet](https://github.com/facebook/prophet)
-
-高亮为测试后效果好的变量。
-
-一系列的特征工程我们在Xgboost进行了融合。
-
-### 后续可以做的空间
-
-#### 深度学习的方法
+## 深度学习的方法
 
 1. 采用空洞卷积的方法[@oord2016wavenet;@oord2016conditional;@sprangers2022parameter;@kechyn2018sales]，一些其他的应用如音频的频谱、长时间序列。
 
-#### XGBoost
+## XGBoost
 
 1. 我们没有将神经网络和XGboost进行融合，因为没有保存训练集的预测值。
 主办方在比赛过程中修改了数据集和评价函数，导致我们无法复现原来的历史预测。
@@ -84,7 +69,7 @@ glue::glue("1. [{index_name}]({index_path})")
 1. 采用更加合理的窗口特征提取方式[@elsayed2021we]
 1. 预测y的目标是四个，可以考虑多任务的框架，如 MT-GBT[@ying2022mt]
 
-#### EDA和特征工程
+## EDA和特征工程
 
 1. 其次，我们一开始没有很好的做EDA，观察被解释变量关于时间的波动，查看异常值。
 1. 在特征工程的部分，非线性关系的拟合，没有使用更高效的 Ramsey’s RESET test，详见[Github](https://github.com/JiaxiangBU/learn_fe)
